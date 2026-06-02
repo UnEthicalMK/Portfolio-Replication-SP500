@@ -145,14 +145,24 @@ python main.py --diagnostics   # Milestone 5: Tear sheet and residual analysis
 
 ## Visual Diagnostics
 
-### Cumulative Returns — 2023 Out-of-Sample
-All three proxy portfolios outperformed the S&P 500 Total Return benchmark in 2023, driven by strong performance in the European and Japanese ADR names. The Lasso portfolio exhibited the tightest co-movement with the benchmark, consistent with its lower tracking error.
+### Frozen Portfolio Allocation Vectors (Plot 5)
+The Lasso optimizer concentrates capital into a handful of high-signal names — SAP, TM, HMC, and ASML receive the largest tilts — while Equal-Weight and SAE distribute evenly across the same `K=20` asset universe. This heterogeneity in weight structure, despite identical cardinality, is what drives the performance divergence in the backtest.
 
-### Rolling Tracking Error
-The 21-day annualised tracking error for all models converged into the 6–8% band by mid-year, with the SAE showing moderately higher dispersion in the August regime shift. Lasso maintained the most stable profile throughout.
+![Instrument Weights](plots/05_instrument_weights.png)
 
-### Residual Distribution
-All three models produce approximately zero-mean residual distributions centred near the dashed vertical at `0.000`. The SAE exhibits slightly fatter tails (wider Gaussian fit) relative to Lasso and Equal-Weight, consistent with its higher tracking error and max drawdown.
+---
+
+### Cumulative Returns — 2023 Out-of-Sample (Plot 6)
+All three proxy portfolios outperformed the S&P 500 Total Return benchmark in 2023, driven by strong performance in the European and Japanese ADR names. The Lasso portfolio exhibited the tightest co-movement with the benchmark, consistent with its lower tracking error. The Equal-Weight portfolio's outperformance widened through Q4, reflecting concentrated gains in its top-ranked names.
+
+![Cumulative Returns](plots/06_cumulative_returns.png)
+
+---
+
+### Rolling 21-Day Annualised Tracking Error (Plot 7)
+All models entered 2023 with elevated tracking error (~12%) before converging toward the 6–8% band by May. The SAE shows structurally higher dispersion than Lasso throughout, particularly around the August regime shift. Lasso maintained the most stable and lowest error profile across the full year, consistent with its optimisation objective.
+
+![Rolling Tracking Error](plots/07_rolling_tracking_error.png)
 
 ---
 
