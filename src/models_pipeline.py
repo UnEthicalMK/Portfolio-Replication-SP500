@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from src.models.equal_weight import train_equal_weight
-from src.models.lasso_model import (
+from src.models.simplex_optimizer import (
     train_lasso,
     plot_lasso_sweep
 )

@@ -1,8 +1,12 @@
+import os
 import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import matplotlib.pyplot as plt
+
+plt.style.use('seaborn-v0_8-whitegrid')
 
 from torch.utils.data import (
     TensorDataset,
@@ -84,7 +88,7 @@ def train_sae(X_train, y_train, X_val, y_val, top_k=None):
     mse_loss = nn.MSELoss()
 
     alpha_recon = 0.25
-    lambda_l1 = 5e-4  # FIX: Added L1 regularization strength
+    lambda_l1 = 5e-4
 
     best_val_loss = float("inf")
     best_weights = None
@@ -92,8 +96,15 @@ def train_sae(X_train, y_train, X_val, y_val, top_k=None):
     patience = 25
     no_improve = 0
 
+    # ----------------------------------
+    # Telemetry Tracking
+    # ----------------------------------
+    train_loss_history = []
+    val_loss_history = []
+
     for epoch in range(500):
         model.train()
+        epoch_train_loss = 0.0
 
         for batch_X, batch_y in loader:
             optimizer.zero_grad()
@@ -103,10 +114,6 @@ def train_sae(X_train, y_train, X_val, y_val, top_k=None):
             tracking_loss = mse_loss(pred_y, batch_y)
             reconstruction_loss = mse_loss(recon_X, batch_X)
 
-            # ----------------------------------
-            # FIX: Real sparsity penalty
-            # Apply L1 to the pre-softmax linear layers
-            # ----------------------------------
             l1_penalty = (
                 torch.norm(model.encoder.weight, p=1) + 
                 torch.norm(model.tracking_head.weight, p=1)
@@ -120,6 +127,10 @@ def train_sae(X_train, y_train, X_val, y_val, top_k=None):
 
             total_loss.backward()
             optimizer.step()
+            
+            epoch_train_loss += total_loss.item()
+            
+        avg_train_loss = epoch_train_loss / len(loader)
 
         # ----------------------------------
         # Validation
@@ -128,19 +139,46 @@ def train_sae(X_train, y_train, X_val, y_val, top_k=None):
         with torch.no_grad():
             val_pred, _ = model(X_val_t)
             val_loss = mse_loss(val_pred, y_val_t).item()
+            
+            # Record metrics for the plot
+            train_loss_history.append(avg_train_loss)
+            val_loss_history.append(val_loss)
 
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                
-                # FIX: Added .detach() for safe tensor-to-numpy conversion
                 best_weights = model.get_portfolio_weights().detach().cpu().numpy()
                 no_improve = 0
             else:
                 no_improve += 1
 
         if no_improve >= patience:
-            print(f"  Early stopping at epoch {epoch}")
+            print(f"  Early stopping triggered at epoch {epoch}")
             break
+
+    # =====================================================
+    # Diagnostic Plot Generation (Plot 9)
+    # =====================================================
+    print("  Generating Plot 9: SAE Learning Curves...")
+    os.makedirs('plots', exist_ok=True)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    
+    ax.plot(train_loss_history, label='Training Loss (Includes L1 & Recon)', color='steelblue', linewidth=1.5)
+    ax.plot(val_loss_history, label='Validation Loss (Pure Tracking MSE)', color='darkorange', linewidth=2)
+    
+    # Mark the epoch where the best weights were found
+    best_epoch = len(train_loss_history) - patience - 1
+    if best_epoch > 0:
+        ax.axvline(best_epoch, color='black', linestyle=':', label=f'Optimal Weights Selected (Epoch {best_epoch})')
+
+    ax.set_title("SAE Learning Curves — Generalization vs. Memorization (Plot 9)", fontsize=12, fontweight='bold')
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Loss")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig("plots/09_sae_loss_curves.png", dpi=150, bbox_inches='tight')
+    plt.close()
 
     # Safety fallback
     if best_weights is None:
