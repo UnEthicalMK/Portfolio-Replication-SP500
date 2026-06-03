@@ -10,7 +10,7 @@ A full quantitative pipeline that constructs, backtests, and diagnostics three c
 
 | Metric | Lasso (Simplex) | Autoencoder (SAE) | Equal Weight |
 |---|---|---|---|
-| **Tracking Error (Ann.)** | 8.50% | 8.73% | 8.77% | 
+| **Tracking Error (Ann.)** | 8.50% | 8.97% | 8.77% | 
 | **Correlation** | 0.8029 | 0.8064 | 0.7963 | 
 | **Max Drawdown** | **-6.93%** | -9.44% | -8.38% | 
 | **Stocks Used** | 20 | 20 | 20 |
@@ -143,21 +143,21 @@ python main.py --diagnostics   # Milestone 5: Tear sheet and residual analysis
 
 ## Visual Diagnostics
 
-### Frozen Portfolio Allocation Vectors (Plot 5)
+### Frozen Portfolio Allocation Vectors
 The Lasso optimizer concentrates capital into a handful of high-signal names — SAP, TM, HMC, and ASML receive the largest tilts — while Equal-Weight and SAE distribute evenly across the same `K=20` asset universe. This heterogeneity in weight structure, despite identical cardinality, is what drives the performance divergence in the backtest.
 
 ![Instrument Weights](plots/05_instrument_weights.png)
 
 ---
 
-### Cumulative Returns — 2023 Out-of-Sample (Plot 6)
+### Cumulative Returns — 2023 Out-of-Sample
 All three proxy portfolios outperformed the S&P 500 Total Return benchmark during the 2023 out-of-sample test period. The Simplex Optimized portfolio exhibited the closest co-movement with the benchmark, consistent with its lower realized tracking error. The Equal-Weight portfolio generated the strongest excess return, with its performance advantage widening during the latter part of the year.
 
 ![Cumulative Returns](plots/06_cumulative_returns.png)
 
 ---
 
-### Rolling 21-Day Annualised Tracking Error (Plot 7)
+### Rolling 21-Day Annualised Tracking Error
 Tracking error began the year at elevated levels (~12%) for all models before declining into the 6–8% range by May. The Sparse Autoencoder displayed greater dispersion than the Lasso portfolio throughout the test period, while the Lasso model delivered the most stable and consistently lowest tracking error, reflecting its optimization-based construction.
 
 ![Rolling Tracking Error](plots/07_rolling_tracking_error.png)
@@ -181,8 +181,10 @@ Tracking error began the year at elevated levels (~12%) for all models before de
 - Outperformance in 2023 was supported by favorable conditions for several non-U.S. ADRs and may not persist in future market environments.
 - Transaction costs, taxes, market impact, leverage, short selling, and currency hedging were not considered.
 - Securities with incomplete trading histories were excluded, which may introduce survivorship and selection bias into the results.
+- The analysis uses **Price Returns** rather than Total Returns, excluding dividend reinvestment. 
+- Additionally, the Sparse Autoencoder contains stochastic training components, meaning results may vary slightly between runs unless random seeds are fixed.
 ---
 
 ## Disclaimer
 
-This project was developed for educational and research purposes only. The analysis, results, and portfolio constructions presented herein do not constitute financial, investment, or trading advice. Past performance is not indicative of future results, and no representation is made regarding the future performance of any security or strategy.
+This project is a prototype and developed for educational and research purposes only. The analysis, results, and portfolio constructions presented herein do not constitute financial, investment, or trading advice. Past performance is not indicative of future results, and no representation is made regarding the future performance of any security or strategy.
