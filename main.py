@@ -10,7 +10,7 @@ from src.diagnostics import run_diagnostics
 
 print("=" * 60)
 print("  SYNTHETIC INDEX REPLICATION ENGINE")
-print("  Target: S&P 500 Total Return")
+print("  Target: S&P 500 Price Return")
 print("  Proxy Universe: 31 Global ADRs (Strictly Non-US)")
 print("=" * 60)
 

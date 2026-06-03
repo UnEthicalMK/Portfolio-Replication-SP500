@@ -10,7 +10,7 @@ from scipy.spatial.distance import pdist  # FIX: Correct module import
 
 plt.style.use('seaborn-v0_8-whitegrid')
 
-TARGET = '^SP500TR'
+TARGET = '^GSPC'
 
 # =========================================================
 # SINGLE SOURCE OF TRUTH FOR ALL SPLITS

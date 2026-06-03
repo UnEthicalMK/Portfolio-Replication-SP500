@@ -5,7 +5,7 @@ from scipy.stats import norm
 
 plt.style.use('seaborn-v0_8-whitegrid')
 
-TARGET = '^SP500TR'
+TARGET = '^GSPC'
 
 # =========================================================
 # Quantitative Math Helpers
