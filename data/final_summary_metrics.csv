@@ -1,6 +1,6 @@
 ,Equal_Weight,Lasso,SAE
-Tracking Error (Ann.),0.0879,0.0851,0.0875
-Cumulative Return,0.3309,0.3154,0.2790
-Max Daily Deviation,0.0172,0.0188,0.0194
+Tracking Error (Ann.),0.0879,0.0852,0.0899
+Cumulative Return,0.3309,0.3154,0.3337
+Max Daily Deviation,0.0172,0.0187,0.0193
 Active Instruments,20,20,20
-Residual Sharpe,0.68,0.55,0.23
+Residual Sharpe,0.86,0.75,0.87

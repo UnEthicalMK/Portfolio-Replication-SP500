@@ -12,7 +12,7 @@ plt.style.use('seaborn-v0_8-whitegrid')
 # ---------------------------------------------------------
 START_DATE = '2014-01-01'
 END_DATE = '2023-12-31'
-TARGET = '^SP500TR'
+TARGET = '^GSPC'
 
 CHINA_HK    = ['BABA', 'JD', 'BIDU', 'TME', 'NTES', 'PDD']
 TAIWAN      = ['TSM', 'UMC']

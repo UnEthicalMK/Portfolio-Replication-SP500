@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 plt.style.use('seaborn-v0_8-whitegrid')
 
-TARGET = '^SP500TR'
+TARGET = '^GSPC'
 INITIAL_CAPITAL = 1_000_000.0
 
 # ---------------------------------------------------------
