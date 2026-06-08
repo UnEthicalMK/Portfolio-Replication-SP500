@@ -179,7 +179,7 @@ Tracking error began the year at elevated levels (~12%) for all models before de
 - Data was sourced from Yahoo Finance and uses adjusted closing prices, which may differ from institutional data providers.
 - The backtest assumes a buy-and-hold strategy with no rebalancing; real-world index replication requires periodic portfolio adjustments.
 - Outperformance in 2023 was supported by favorable conditions for several non-U.S. ADRs and may not persist in future market environments.
-- Transaction costs, taxes, market impact, leverage, short selling, and currency hedging were not considered.
+- Taxes, market impact, leverage, short selling, and currency hedging were not considered.
 - Securities with incomplete trading histories were excluded, which may introduce survivorship and selection bias into the results.
 - The analysis uses **Price Returns** rather than Total Returns, excluding dividend reinvestment. 
 - Additionally, the Sparse Autoencoder contains stochastic training components, meaning results may vary slightly between runs unless random seeds are fixed.
