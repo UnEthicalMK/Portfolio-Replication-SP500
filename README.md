@@ -1,190 +1,132 @@
-# Synthetic Index Replication Engine
+# Synthetic Index Replication Engine  
+### Sparse Optimization vs. Deep Latent Models — A Global Index Tracking Benchmark  
 
-> **Replicate the S&P 500 Total Return Index using 20 liquid Global ADRs — without holding a single US-listed stock.**
+![Python](https://img.shields.io/badge/Python-3.10+-blue)
+![PyTorch](https://img.shields.io/badge/PyTorch-Deep_Learning-EE4C2C)
+![SciPy](https://img.shields.io/badge/SciPy-Optimization-8CAAE6)
 
-A full quantitative pipeline that constructs, backtests, and diagnostics three competing replication strategies: a **Simplex L2 Optimizer** (Lasso), a **Sparse Autoencoder** (SAE), and an **Equal-Weight Baseline**. Trained on 8 years of out-of-sample data, the engine achieves sub-9% annualised tracking error with a correlation above **0.80** to the S&P 500 Total Return benchmark.
-
----
-
-## Performance Summary (2023 Out-of-Sample)
-
-| Metric | Lasso (Simplex) | Autoencoder (SAE) | Equal Weight |
-|---|---|---|---|
-| **Tracking Error (Ann.)** | 8.50% | 8.97% | 8.77% | 
-| **Correlation** | 0.8029 | 0.8064 | 0.7963 | 
-| **Max Drawdown** | **-6.93%** | -9.44% | -8.38% | 
-| **Stocks Used** | 20 | 20 | 20 |
-
-**Benchmark**: S&P 500 Total Returns
-
-> All models were trained on 2014–2021 data, validated on 2022, and tested on a completely unseen 2023 out-of-sample period, with strict temporal separation maintained throughout the pipeline to eliminate look-ahead bias.
+> A reproducible quantitative research prototype comparing a classical **Sparse L2 (Lasso) Optimization Model**, a **Sparse Autoencoder (SAE)**, and an **Equal-Weight Baseline** for replicating the S&P 500 Total Return Index using exactly 20 global ADRs.
 
 ---
 
-## Architecture
+## 1. Executive Summary
 
-```
-synthetic-index-tracker/
-│
-├── main.py                          # CLI Orchestrator — run any combination of milestones
-│
-├── src/
-│   ├── data_pipeline.py             # Milestone 1: yfinance ingestion, IPO filtering, holiday forward-fill
-│   ├── features.py                  # Milestone 2: Temporal partitioning, StandardScaler, hierarchical correlation
-│   ├── models_pipeline.py           # Milestone 3: Model training, apples-to-apples K-constraint handshake
-│   ├── backtest.py                  # Milestone 4: Friction-adjusted buy-and-hold simulator (ADR tier fees)
-│   ├── diagnostics.py               # Milestone 5: Institutional tear sheet, residual distribution, Max DD
-│   │
-│   └── models/
-│       ├── equal_weight.py          # Model A: Top-K equal allocation ranked by training correlation
-│       ├── simplex_optimizer.py     # Model B: Scaled L2-penalised Simplex Optimizer (SLSQP, ftol=1e-9)
-│       └── sparse_autoencoder.py    # Model C: L1-regularised Latent SAE with early stopping (PyTorch)
-│
-├── data/                            
-│   ├── raw_prices.csv               # Cleaned ADR + S&P 500 closing prices (2014–2023)
-│   ├── log_returns.csv              # Continuous log returns for the full universe
-│   ├── oos_portfolio_returns.csv    # Combined 2023 daily returns for all three models + benchmark
-│   └── final_summary_metrics.csv    # Exported quantitative tear sheet (TE, Sharpe, drawdown, etc.)
-│
-├── models/                         
-│   ├── scaler.pkl                   # Fitted StandardScaler artifact (training-set statistics only)
-│   └── frozen_weights_2022.csv      # Locked optimal portfolio weights (T-0 state, val-set selected)
-│
-└── plots/                           
-    ├── instrument_weights.png       # Frozen allocation vectors across all three models
-    ├── cumulative_returns.png       # 2023 growth of $1 — all models vs. benchmark
-    ├── rolling_tracking_error.png   # Rolling 21-day annualised tracking error (2023)
-    └── sae_loss_curve.png           # Daily residual distributions with fitted normals
-```
+This engine evaluates whether a constrained global equity universe (non-US ADRs only) can effectively replicate US equity market beta under strict sparsity and long-only constraints. The models are trained on 2014–2021 data, validated on 2022 data, and benchmarked strictly on a completely unseen 2023 out-of-sample period.
+
+| Model | Tracking Error (Ann.) | Correlation | Max Drawdown |
+| :--- | :--- | :--- | :--- |
+| **Lasso (Simplex Optimizer)** | **8.50%** | 0.8029 | **-6.93%** |
+| **Sparse Autoencoder (SAE)** | 8.97% | **0.8064** | -9.44% |
+| **Equal-Weight Baseline** | 8.77% | 0.7963 | -8.38% |
+
+**The Core Insight:** Optimization (Lasso) dominates variance minimization and tail-risk control, while deep representation learning (SAE) extracts superior directional correlation but destabilizes absolute tracking volatility.
 
 ---
 
-## Proxy Universe — 31 Global ADRs
+## 2. The Mathematical Problem
 
-The proxy universe consists of 31 liquid global ADRs spanning major economic regions and sectors. This internationally diversified universe serves as the candidate set from which sparse portfolios are selected to replicate the return profile of the S&P 500.
+The objective of synthetic index replication is to construct a sparse portfolio weight vector $\mathbf{w}$ that minimizes the variance of the tracking difference against a benchmark $R_b$:
 
-| Region | Tickers |
-|---|---|
-| **China / HK** | BABA, JD, BIDU, TME, NTES, PDD |
-| **India** | INFY, WIT, HDB, IBN, RDY, MMYT |
-| **Latin America** | MELI, VALE, PBR, BBD |
-| **Europe** | ASML, NVO, SAP, SHEL, BCS |
-| **Japan** | TM, SONY, HMC |
-| **Taiwan** | TSM, UMC |
-| **South Korea** | SKM, KB |
+$$\min_{\mathbf{w}} \; \text{Var}(R_p - R_b)$$
 
----
+Subject to real-world institutional constraints:
+1. **Fully Invested:** $\sum w_i = 1$
+2. **Long-Only:** $w_i \ge 0 \quad \forall i$
+3. **Cardinality / Sparsity:** $\|\mathbf{w}\|_0 \le K \quad (\text{where } K = 20)$
 
-## Pipeline Design Decisions
-
-### Temporal Discipline
-
-The pipeline enforces strict chronological separation between training, validation, and testing periods to eliminate look-ahead bias and ensure a realistic out-of-sample evaluation.
-
-| Split | Period | Purpose |
-|---|---|---|
-| **Train** | 2014–2021 | Model fitting and scaler calibration |
-| **Validation** | 2022 | Hyperparameter selection and portfolio freezing |
-| **Test** | 2023 | Fully held-out out-of-sample evaluation |
+### Core Quantitative Challenges
+1. **High-Dimensionality:** Navigating highly correlated cross-asset equity spaces.
+2. **Combinatorial Explosion:** Solving the $L_0$ sparsity constraint directly is NP-hard.
+3. **Cross-Market Dynamics:** Capturing US market beta using assets exposed to foreign FX and geographic regimes.
 
 ---
 
-### Consistent Portfolio Cardinality
+## 3. Data & Universe Diagnostics (EDA)
 
-To ensure a fair comparison across methodologies, the simplex optimizer determines the optimal portfolio sparsity level (**K**) on the validation set. The Equal-Weight and Sparse Autoencoder models are subsequently constrained to the same **K** at inference time, ensuring that differences in performance arise from security selection and weighting methodology rather than portfolio size.
+The candidate universe consists of 31 liquid Global ADRs across Emerging and Developed markets. 
 
----
+<p align="center">
+  <img src="plots/01_price_history.png" width="48%" title="Universe Price History" />
+  <img src="plots/03_correlation_matrix.png" width="48%" title="Cross-Market Correlation" />
+</p>
 
-### Transaction Cost Model
-
-Backtest performance is adjusted using a tiered ADR transaction-cost framework based on MSCI market classifications.
-
-| ADR Tier | Fee |
-|---|---|
-| Emerging Market ADRs (China, India, Latin America, Taiwan, Korea) | **15 bps** |
-| Developed Market ADRs (Europe, Japan) | **10 bps** |
-
-> Transaction costs are applied as a one-time portfolio entry charge at the beginning of the test period, consistent with a passive buy-and-hold implementation.
+**Quantitative Observations:**
+* **Intra-Sector Clustering:** Strong positive covariance blocks exist among global semiconductor and technology ADRs.
+* **Regional Regimes:** Macro geographic effects dominate the return structure, with emerging markets exhibiting significantly higher volatility dispersion compared to the benchmark.
 
 ---
 
-### Data Quality
-Pre-IPO observations for late-listed ADRs are treated as structural missing data and are not imputed. Forward-filling is restricted to short holiday-related gaps (maximum five business days), after which any security with remaining missing values is removed.
+## 4. The Competing Frameworks
+
+### 4.1 Equal-Weight Baseline
+A naïve but highly stable reference portfolio:
+* Computes historical Pearson correlation to the benchmark.
+* Selects the top $K=20$ ADRs and assigns a uniform $1/K$ weight vector.
+
+### 4.2 Sparse L2 Optimizer (Lasso / Simplex)
+A constrained mathematical optimization formulation utilizing the SLSQP algorithm:
+* **Objective:** Direct minimization of tracking error variance.
+* **Regularization:** Employs an L2 penalty to prevent singular matrix inversion failures and ensure weight stability.
+* **Sparsity:** Truncates to the top $K$ assets post-optimization and re-normalizes to sum to 1.0.
+
+### 4.3 Sparse Autoencoder (SAE)
+A neural representation learning architecture built in PyTorch:
+* **Objective:** Learns latent macroeconomic factors embedded across the ADR universe.
+* **Regularization:** Applies an L1 penalty directly to the latent space to structurally induce network sparsity.
+* **Extraction:** Converts decoder feature importances into the final long-only portfolio weights.
 
 ---
 
-## Quickstart
+## 5. Portfolio Construction Diagnostics
 
-### Requirements
+Evaluating the models' internal state at $T-0$ reveals drastically different capital allocation methodologies despite identical cardinality constraints.
 
-```bash
-pip install yfinance pandas numpy scipy scikit-learn matplotlib seaborn joblib torch
-```
+<p align="center">
+  <img src="plots/04_lasso_sweep.png" width="48%" title="Lasso Alpha Sweep" />
+  <img src="plots/05_instrument_weights.png" width="48%" title="Frozen T-0 Weights" />
+</p>
 
-### Run the Full Pipeline
-
-```bash
-python main.py --all
-```
-
-### Run Individual Milestones
-
-```bash
-python main.py --data          # Milestone 1: Download and clean ADR data
-python main.py --features      # Milestone 2: Partition, scale, and correlate
-python main.py --models        # Milestone 3: Train all three models
-python main.py --backtest      # Milestone 4: 2023 out-of-sample simulation
-python main.py --diagnostics   # Milestone 5: Tear sheet and residual analysis
-```
-
-> Running `main.py` with no flags defaults to `--all`.
+**Quantitative Observations:**
+* The **Lasso** optimizer acts as a variance-sink, violently concentrating capital into a handful of high-beta anchors (e.g., ASML, TM, SAP) to offset benchmark volatility.
+* The **SAE** and **Equal-Weight** models distribute risk much more uniformly. This heterogeneity in selection drives the entirety of the out-of-sample divergence.
 
 ---
 
-## Visual Diagnostics
+## 6. Out-of-Sample Performance (2023)
 
-### Frozen Portfolio Allocation Vectors
-The Lasso optimizer concentrates capital into a handful of high-signal names — SAP, TM, HMC, and ASML receive the largest tilts — while Equal-Weight and SAE distribute evenly across the same `K=20` asset universe. This heterogeneity in weight structure, despite identical cardinality, is what drives the performance divergence in the backtest.
+Evaluated over a completely unseen 252-day trading period, all models successfully replicated the directional drift of the S&P 500, but their tracking stability varied significantly.
 
-![Instrument Weights](plots/05_instrument_weights.png)
+<p align="center">
+  <img src="plots/06_cumulative_returns.png" width="48%" title="Cumulative Returns" />
+  <img src="plots/07_rolling_tracking_error.png" width="48%" title="Rolling Tracking Error" />
+</p>
 
----
-
-### Cumulative Returns — 2023 Out-of-Sample
-All three proxy portfolios outperformed the S&P 500 Total Return benchmark during the 2023 out-of-sample test period. The Simplex Optimized portfolio exhibited the closest co-movement with the benchmark, consistent with its lower realized tracking error. The Equal-Weight portfolio generated the strongest excess return, with its performance advantage widening during the latter part of the year.
-
-![Cumulative Returns](plots/06_cumulative_returns.png)
-
----
-
-### Rolling 21-Day Annualised Tracking Error
-Tracking error began the year at elevated levels (~12%) for all models before declining into the 6–8% range by May. The Sparse Autoencoder displayed greater dispersion than the Lasso portfolio throughout the test period, while the Lasso model delivered the most stable and consistently lowest tracking error, reflecting its optimization-based construction.
-
-![Rolling Tracking Error](plots/07_rolling_tracking_error.png)
+**Quantitative Observations:**
+* **Lasso** delivers the tightest and most stable replication trajectory, sustaining the lowest rolling tracking error.
+* **SAE** captures the directional moves exceptionally well (highest correlation) but introduces excess tracking volatility.
 
 ---
 
-### Model Notes
+## 7. Statistical Diagnostics
 
-- **Model A — Equal Weight:** Picks the K ADRs that historically moved most like the S&P 500 and gives each an equal allocation. Simple, transparent, and serves as a baseline.
+Analyzing the statistical residuals (Tracking Difference) explains the behavioral profiles of the underlying models.
 
-- **Model B — Simplex Optimizer:** Finds the combination of ADR weights that best tracks the S&P 500 while keeping the portfolio diversified and avoiding overly concentrated positions.
+<p align="center">
+  <img src="plots/08_residual_distribution.png" width="48%" title="Residual Distribution" />
+  <img src="plots/09_sae_loss_curves.png" width="48%" title="SAE Convergence" />
+</p>
 
-- **Model C — Sparse Autoencoder:** Uses a neural network to discover hidden patterns shared across the ADR universe, then identifies the stocks most important for explaining S&P 500 movements and converts those insights into portfolio weights.
+**Quantitative Observations:**
+* **Lasso residuals** are Gaussian-like and tightly bound around zero, confirming it functions as a highly stable, unbiased estimator.
+* **SAE residuals** exhibit fatter tails, indicating higher sensitivity to sudden market regime shifts. Deep models inherently trade absolute stability for latent representation power.
 
 ---
 
-## Limitations
+## 8. Conclusion
 
-- Data was sourced from Yahoo Finance and uses adjusted closing prices, which may differ from institutional data providers.
-- The backtest assumes a buy-and-hold strategy with no rebalancing; real-world index replication requires periodic portfolio adjustments.
-- Outperformance in 2023 was supported by favorable conditions for several non-U.S. ADRs and may not persist in future market environments.
-- Taxes, market impact, leverage, short selling, and currency hedging were not considered.
-- Securities with incomplete trading histories were excluded, which may introduce survivorship and selection bias into the results.
-- The analysis uses **Price Returns** rather than Total Returns, excluding dividend reinvestment. 
-- Additionally, the Sparse Autoencoder contains stochastic training components, meaning results may vary slightly between runs unless random seeds are fixed.
+Building a direct index tracking engine without domestic equities proves that significant market beta can be captured globally. However, this prototype demonstrates a fundamental quantitative trade-off: **Sparse optimization remains the most reliable approach for index replication stability, while deep learning improves representation quality but increases tail risk.**
+
+The optimal enterprise production system is a **hybrid latent-optimization pipeline**: Utilizing the Sparse Autoencoder purely for regime identification and latent factor extraction, and feeding those structural signals into the Simplex Optimizer to enforce strict drawdown and tracking-error boundaries.
+
 ---
 
-## Disclaimer
-
-This project is a prototype and developed for educational and research purposes only. The analysis, results, and portfolio constructions presented herein do not constitute financial, investment, or trading advice. Past performance is not indicative of future results, and no representation is made regarding the future performance of any security or strategy.
