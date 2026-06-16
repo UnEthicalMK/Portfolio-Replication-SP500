@@ -1,20 +1,17 @@
 import os
-import pandas as pd
+import joblib
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import joblib
-from sklearn.preprocessing import StandardScaler
 import scipy.cluster.hierarchy as hc
-from scipy.spatial.distance import pdist  # FIX: Correct module import
+
+from sklearn.preprocessing import StandardScaler
+from scipy.spatial.distance import pdist
 
 plt.style.use('seaborn-v0_8-whitegrid')
 
 TARGET = '^GSPC'
-
-# =========================================================
-# SINGLE SOURCE OF TRUTH FOR ALL SPLITS
-# =========================================================
 
 TRAIN_END = '2021-12-31'
 VAL_START = '2022-01-01'
@@ -29,7 +26,8 @@ def ensure_directories():
 
 
 def load_data():
-    print("Loading log returns...")
+    print("Loading return data...")
+
     return pd.read_csv(
         'data/log_returns.csv',
         index_col=0,
@@ -38,7 +36,6 @@ def load_data():
 
 
 def partition_data(df):
-
     y = df[TARGET]
     X = df.drop(columns=[TARGET])
 
@@ -51,41 +48,27 @@ def partition_data(df):
     X_test = X.loc[TEST_START:]
     y_test = y.loc[TEST_START:]
 
-    print(f"  Train: {X_train.shape[0]} rows")
-    print(f"  Val:   {X_val.shape[0]} rows")
-    print(f"  Test:  {X_test.shape[0]} rows")
+    print(f"Training observations   : {len(X_train)}")
+    print(f"Validation observations : {len(X_val)}")
+    print(f"Test observations       : {len(X_test)}")
 
-    return (
-        X_train,
-        X_val,
-        X_test,
-        y_train,
-        y_val,
-        y_test
-    )
+    return X_train, X_val, X_test, y_train, y_val, y_test
 
 
 def plot_correlation_matrix(X_train):
-    print("Generating Plot 3: Hierarchical Correlation Matrix...")
+    print("Generating Plot 3: Hierarchical correlation matrix...")
+
     corr = X_train.corr()
 
-    # FIX: Use pdist on transposed features to natively calculate condensed distances.
-    # Completely avoids AttributeError and floating-point ValueError traps.
+    # Cluster assets based on correlation distance
     dist_array = pdist(X_train.T, metric='correlation')
-    
-    linkage = hc.linkage(
-        dist_array,
-        method='average'
-    )
+    linkage = hc.linkage(dist_array, method='average')
 
     order = hc.leaves_list(linkage)
-
     sorted_cols = corr.columns[order]
     sorted_corr = X_train[sorted_cols].corr()
 
-    mask = np.triu(
-        np.ones_like(sorted_corr, dtype=bool)
-    )
+    mask = np.triu(np.ones_like(sorted_corr, dtype=bool))
 
     plt.figure(figsize=(14, 12))
 
@@ -106,19 +89,13 @@ def plot_correlation_matrix(X_train):
     )
 
     plt.tight_layout()
-    plt.savefig(
-        "plots/03_correlation_matrix.png",
-        dpi=150
-    )
+    plt.savefig("plots/03_correlation_matrix.png", dpi=150)
     plt.close()
 
 
-def scale_features(
-    X_train,
-    X_val,
-    X_test
-):
-    print("Fitting Scalers and transforming data...")
+def scale_features(X_train, X_val, X_test):
+    print("Fitting feature scaler...")
+
     scaler = StandardScaler()
 
     X_train_scaled = pd.DataFrame(
@@ -139,52 +116,32 @@ def scale_features(
         columns=X_test.columns
     )
 
-    return (
-        X_train_scaled,
-        X_val_scaled,
-        X_test_scaled,
-        scaler
-    )
+    return X_train_scaled, X_val_scaled, X_test_scaled, scaler
 
 
 def run_feature_engineering():
-    print("\n--- Starting Milestone 2: Feature Engineering & Scaling ---")
+    print("\n--- Milestone 2: Feature Engineering & Scaling ---")
+
     ensure_directories()
 
     df = load_data()
 
-    (
-        X_train,
-        X_val,
-        X_test,
-        y_train,
-        y_val,
-        y_test
-    ) = partition_data(df)
+    X_train, X_val, X_test, y_train, y_val, y_test = partition_data(df)
 
     plot_correlation_matrix(X_train)
 
-    (
-        X_train_scaled,
-        X_val_scaled,
-        X_test_scaled,
-        scaler
-    ) = scale_features(
+    X_train_scaled, X_val_scaled, X_test_scaled, scaler = scale_features(
         X_train,
         X_val,
         X_test
     )
 
-    # =====================================================
     # Save scaled datasets
-    # =====================================================
     X_train_scaled.to_csv('data/X_train_scaled.csv')
     X_val_scaled.to_csv('data/X_val_scaled.csv')
     X_test_scaled.to_csv('data/X_test_scaled.csv')
 
-    # =====================================================
-    # Save unscaled datasets
-    # =====================================================
+    # Save original datasets
     X_train.to_csv('data/X_train_unscaled.csv')
     X_val.to_csv('data/X_val_unscaled.csv')
     X_test.to_csv('data/X_test_unscaled.csv')
@@ -195,4 +152,4 @@ def run_feature_engineering():
 
     joblib.dump(scaler, 'models/scaler.pkl')
 
-    print("Milestone 2 Complete. Datasets partitioned, scaled, and saved.\n")
+    print("Feature engineering completed successfully.")
