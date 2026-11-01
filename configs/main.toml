@@ -1,0 +1,68 @@
+# Single source of truth for pipeline parameters.
+# Source of record: Research Specification v1.2.1 (approved, authoritative).
+# src/config.py validates these invariants and fails fast before any data work.
+# Section references point to the specification.
+
+[paths]
+raw_dir = "data/raw"              # S1: immutable parquet snapshots (Spec §2)
+derived_dir = "data"              # fold tables and result artifacts
+legacy_dir = "artifacts/legacy"   # archived pre-03454bc outputs (finding D-11)
+plots_dir = "plots"
+models_dir = "models"
+
+[benchmark]                       # Spec §2
+primary = "^SP500TR"              # S&P 500 Total Return — the target
+price_check = "^GSPC"             # price index — cross-check only, never the target
+investable_check = "SPY"          # investable total-return proxy cross-check
+annual_return_tolerance_pp = 0.3  # AC-5 data gate vs official S&P DJI figures
+# Official calendar-year returns in percent (verified in the investigation).
+official_annual_returns = { 2023 = { price = 24.23, total = 26.29 } }
+
+[download]                        # Spec §2 (data requirements)
+start = "2007-01-01"              # covers W_refit(2014) = 2007-12-31 → 2013-12-31
+end = "2023-12-31"
+
+[universe]                        # Spec §2 (point-in-time rules; module arrives in S1)
+min_history_days = 252            # listed >= 12 months at fold start
+min_median_dollar_volume = 5000000
+
+[estimation]                      # Spec §1.2
+cash_park_return = 0.0            # zero-return parking, pre-first-return days ONLY (F-3)
+
+[folds]                           # Spec §3 (walk-forward geometry)
+estimation_days = 1260            # L = 5y (robustness ablation allows 756)
+validation_days = 252             # V = 1y
+test_days = 252                   # NOMINAL convention; realized test counts come from the return index R (AC-12: observed 249-252)
+step_days = 252                   # annual roll
+first_test_year = 2014
+last_test_year = 2023
+
+[optimizer]                       # Spec §1.3, §1.4, §5
+k_set = [7, 10, 15, 20]           # n_t (full fold universe) appended dynamically (F-1)
+w_max = 0.15                      # FIXED cap; no relaxed caps anywhere (v1.2.1 §1.3)
+zero_tol = 1e-12                  # numerical zero for support counting; NOT a weight threshold
+k_selection = "one_se"            # one-standard-error rule on validation MSE (F-10, §8.3)
+
+[costs]                           # Spec §4.4: per-side bps on one-way traded notional
+em_adr_bps = 15
+dm_adr_bps = 10
+# Accounting (S3): initial investment charges C_init = sum_i c_i * w_i (full
+# notional); rebalances charge C_tau = sum_i c_i * |w*_i - w-_i|. Same bps
+# schedule for both; ledgers reported separately (DEC-1, Spec §4.0/§4.2-4.3).
+em_adrs = ["BABA", "JD", "BIDU", "TME", "NTES", "PDD", "INFY", "WIT", "HDB", "IBN", "RDY", "MMYT", "MELI", "VALE", "PBR", "BBD", "TSM", "UMC", "SKM", "KB"]
+dm_adrs = ["ASML", "NVO", "SAP", "SHEL", "BCS", "TM", "SONY", "HMC"]
+
+[rebalance]                       # Spec §3.2/§9
+frequency = "quarterly"           # ablations: monthly, annual
+
+[data_quality]                    # Spec §2.3 stoppage taxonomy
+interruption_max_days = 10        # case D-1 (temporary) threshold, in trading days
+
+[bootstrap]                       # Spec §8
+n_draws = 2000
+block_days = 21                   # expected block length, trading days
+ci_level = 90                     # percent; ALL reported intervals are 90% (§8.0)
+
+[seeds]                           # Spec §10 AC-7
+main = 42
+sae_seeds = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]   # A3 protocol: >= 10 seeds
