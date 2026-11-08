@@ -1,177 +1,220 @@
-# Synthetic S&P 500 Replication Using US-Listed Securities
+# US-Listed S&P 500 Replication
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue)
-![PyTorch](https://img.shields.io/badge/PyTorch-Deep_Learning-EE4C2C)
-![SciPy](https://img.shields.io/badge/SciPy-Optimization-8CAAE6)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-Deep%20Learning-EE4C2C?logo=pytorch&logoColor=white)
+![SciPy](https://img.shields.io/badge/SciPy-Optimization-8CAAE6?logo=scipy&logoColor=white)
+![Status](https://img.shields.io/badge/Status-Research%20Workflow-8A2BE2)
 
-A quantitative portfolio construction framework that evaluates whether a small, constrained portfolio of eligible securities traded on US exchanges can track the S&P 500 out of sample. The project compares three portfolio construction methodologies: **Equal Weight Benchmark**, **Ridge-Regularized Simplex Optimizer**, and **Sparse Autoencoder (Deep Learning)**.
+> **Can a small, constrained portfolio of US-listed securities track the S&P 500 out of sample?**
 
-The `research-workflow` branch uses a versioned universe manifest, explicit exchange and instrument-type eligibility rules, prior-only liquidity screening, and an S&P 500 total-return target. Historical results remain research estimates rather than production trading results: the security manifest, historical index membership, and transaction-cost assumptions are documented approximations.
+This project studies index replication using a compact universe of common stocks, ADRs, and foreign ordinary shares traded on US exchanges. It compares transparent portfolio construction methods under practical research constraints rather than attempting to build a live trading system.
 
-The objective is to determine whether a small portfolio of global equities can synthetically reproduce the return characteristics of a large-cap U.S. equity index.
+The current `research-workflow` branch introduces:
 
----
+- A versioned security-universe manifest
+- Point-in-time exchange and instrument eligibility
+- Prior-only trading-history and liquidity screening
+- Explicit S&P 500 total-return configuration
+- Missing-data handling that avoids blanket forward-filling
+- Focused tests for universe and configuration rules
 
-## 1. Project Overview
-
-### Project Motivation
-Index replication is a classical portfolio construction problem. Instead of holding all 500 constituents of the S&P 500, this project investigates whether exposure can be approximated using a small set of international ADRs. 
-
-**Applications include:**
-| | |
-| :--- | :--- |
-| Synthetic index construction | Cross-market factor replication |
-| Portfolio compression | Tracking-error minimization |
-| Sparse portfolio optimization | |
-
-### Research Question
-Can the daily return profile of the S&P 500 be replicated using a sparse portfolio of non-U.S. ADRs? Three competing approaches are evaluated:
-
-| Model | Description |
-| :--- | :--- |
-| **Equal Weight** | Correlation-ranked portfolio with equal allocations |
-| **Ridge Tracker** | Convex optimization under simplex constraints |
-| **Sparse Autoencoder** | Neural network based latent factor extraction |
+> **Scope:** This is a research-grade project, not an investment product. Data coverage, historical security metadata, index membership, and transaction costs remain simplified assumptions.
 
 ---
 
-## 2. Data & Feature Engineering
+## Contents
 
-### Universe Construction
-*   **Target:** S&P 500 Total Return Index (`^SP500TR`)
-*   **Eligible venues:** NYSE, Nasdaq, and NYSE American
-*   **Eligible instruments:** Common stocks, ADRs, and foreign ordinary shares
-*   **Excluded instruments:** ETFs, ETNs, funds, preferred shares, warrants, rights, and structured products
-*   **Liquidity screen:** Prior 252-observation median dollar volume with a minimum valid-observation fraction
+- [Research question](#research-question)
+- [Universe and data](#universe-and-data)
+- [Portfolio models](#portfolio-models)
+- [Evaluation framework](#evaluation-framework)
+- [Diagnostics](#diagnostics)
+- [Limitations](#limitations)
+- [Roadmap](#roadmap)
+- [Project structure](#project-structure)
 
-| Proxy Universe (29 Global ADRs) | Details |
-| :--- | :--- |
-| **Regions Spanned** | China / Hong Kong, India, Taiwan, South Korea, Japan, Europe, Latin America |
-| **Examples Include** | TSM, ASML, NVO, SAP, INFY, MELI, VALE, TM, SONY |
+## Research question
 
-### Data Pipeline
+The project evaluates whether a small portfolio can reproduce the return behavior of a broad US equity index without directly holding all of its constituents.
 
-**Sample Period:**
-| Dataset | Period | 
-| :--- | :--- | 
-| **Training** | 2014 – 2021 | 
-| **Validation** | 2022 |
-| **Test** | 2023 |
+The primary research objective is:
 
-**Processing Steps:**
-1. Load the versioned security manifest and apply point-in-time eligibility rules
-2. Download adjusted closing prices and volumes using Yahoo Finance
-3. Apply the prior-only history and median-dollar-volume screen
-4. Preserve missing observations instead of forward-filling securities
-5. Compute log returns from observed prices
+> Determine whether an eligible, long-only, fully invested portfolio of US-listed securities can track the S&P 500 Total Return Index out of sample while respecting portfolio-size, liquidity, and concentration constraints.
 
-**Data Quality Diagnostics:**
-![Price History](plots/01_price_history.png)
-![Missing Data](plots/02_missing_data.png)
+This is deliberately narrower than claiming that the resulting portfolio is a production-ready substitute for the S&P 500.
 
-### Feature Engineering
+## Universe and data
 
-**Correlation Structure Analysis:**
-Hierarchical clustering is applied to identify groups of highly correlated assets.
-![Correlation Matrix](plots/03_correlation_matrix.png)
+### Eligibility rules
 
-**Scaling:**
-StandardScaler fitted on training data only. 
-* **Applied exclusively to:** Sparse Autoencoder
-* **Unscaled returns are preserved for:** Equal Weight and Ridge Tracker to maintain portfolio interpretability.
+The research universe is defined through [`configs/universe.csv`](configs/universe.csv) and filtered using [`src/universe.py`](src/universe.py).
 
----
+| Category | Policy |
+| --- | --- |
+| Exchanges | NYSE, Nasdaq, and NYSE American |
+| Eligible instruments | Common stocks, ADRs, and foreign ordinary shares |
+| Excluded instruments | ETFs, ETNs, funds, preferred shares, warrants, rights, and structured products |
+| Benchmark | S&P 500 Total Return Index (`^SP500TR`) |
+| Minimum history | 252 observations |
+| Liquidity measure | Trailing median dollar volume |
+| Liquidity lookback | 252 observations |
+| Minimum median dollar volume | `$5 million` |
+| Minimum valid volume history | 80% of the lookback window |
 
-## 3. Portfolio Construction Models
+Eligibility is evaluated using information available at the portfolio formation date. Duplicate issuers are rejected by the manifest loader so that one issuer is not unintentionally represented multiple times.
 
-### Model A — Equal Weight Benchmark
-**Procedure:** (1) Compute asset-target correlations on training data → (2) Rank assets by correlation → (3) Select top-K assets → (4) Allocate equally.
-**Advantages:** Simple, transparent, and serves as a robust baseline.
+### Data pipeline
 
-### Model B — Ridge-Regularized Tracker
-**Characteristics:** Fully invested, long-only, convex optimization, penalizes concentration.
+The ingestion stage:
 
-**Optimization Problem:**
-$$\min_w\left[\text{MSE}(Xw-y)+\lambda||w||_2^2\right]$$
-**Subject to:**
-$$\sum_iw_i=1$$
-$$w_i\ge0$$
+1. Loads the versioned universe manifest.
+2. Applies point-in-time listing, exchange, instrument, and S&P 500 eligibility rules.
+3. Downloads prices and volumes from Yahoo Finance.
+4. Applies the prior-only liquidity and history screen.
+5. Preserves missing observations instead of filling securities indiscriminately.
+6. Computes log returns from observed prices.
+7. Saves the selected universe and derived return data for later stages.
 
-![Ridge Sweep](plots/04_ridge_sweep.png)
+### Feature engineering
 
-### Model C — Sparse Autoencoder
-**Architecture:** Input Layer → Gaussian Noise → Dropout → Latent Representation (3 Factors) → Tracking Head → Portfolio Weights
+Training-only scaling is used for the neural model. The linear portfolio models operate on unscaled returns so their weights remain directly interpretable.
 
-**Regularization Parameters:** L1 penalty, Dropout, Gaussian noise, Early stopping.
+![Missing data diagnostics](plots/02_missing_data.png)
 
-![SAE Curves](plots/09_sae_loss_curves.png)
+## Portfolio models
 
----
+### 1. Equal-weight baseline
 
-## 4. Backtest Framework
+A transparent benchmark that ranks securities by training-period relationship with the target, selects the top candidates, and allocates equal weights.
 
-### Backtest Design
-* **Evaluation Period:** 2023
-* **Portfolio Rules:** Buy and Hold, Long Only, Fully Invested, No Rebalancing
+### 2. Ridge-regularized tracker
 
-**Transaction Costs:** *(Applied once at portfolio inception)*
-| Asset Type | Cost |
-| :--- | :--- |
-| Developed ADR | 10 bps |
-| Emerging ADR | 15 bps |
+A long-only, fully invested convex tracker that minimizes benchmark-return error while penalizing concentrated allocations:
 
-### Portfolio Allocations
-Final frozen portfolio weights used for the out-of-sample backtest.
-![Portfolio Weights](plots/05_instrument_weights.png)
+$$
+\min_w \left[\operatorname{MSE}(Xw-y) + \lambda \lVert w \rVert_2^2\right]
+$$
 
----
+Subject to:
 
-## 5. Results & Key Findings
+$$
+\sum_i w_i = 1,\qquad w_i \geq 0
+$$
 
-### Dataset & Portfolio Statistics
+### 3. Sparse autoencoder
 
-| Dataset Metrics | Value | | Portfolio Metrics (Asset Count) | Value |
-| :--- | :--- | :--- | :--- | :--- |
-| Trading Days | 2515 | | Equal Weight | 20 |
-| Final Assets | 25 | | Ridge Tracker | 20 |
-| Training Samples | 2014 | | Sparse Autoencoder (SAE) | 20 |
-| Validation Samples | 251 | | | |
-| Test Samples | 250 | | **Ridge Tracker Validation:** | **10.95% TE** (Opt. Alpha: 0.0001) |
+A nonlinear research model using:
 
-### Performance Evaluation
-Metrics tracked include Tracking Error, Correlation, Maximum Drawdown, Residual Sharpe Ratio, and Active Asset Count.
+```text
+Input returns
+    ↓
+Noise + dropout
+    ↓
+Latent representation
+    ↓
+Tracking head
+    ↓
+Portfolio weights
+```
 
-![Cumulative Returns](plots/06_cumulative_returns.png)
-![Rolling Tracking Error](plots/07_rolling_tracking_error.png)
+The autoencoder is treated as an experimental model. It must demonstrate stable out-of-sample value over the simpler linear tracker before it justifies additional complexity.
 
-### Key Findings
-1. **Global ADRs Contain Significant Information About U.S. Equities:** Even without holding U.S. stocks directly, the model captures a substantial portion of S&P 500 return variation.
-2. **Convex Optimization Produces Stable Portfolios:** The Ridge Tracker generated the lowest validation tracking error while maintaining diversification.
-3. **Deep Learning Does Not Automatically Outperform Simpler Methods:** The Sparse Autoencoder discovers latent factors, but increased model complexity does not guarantee superior replication performance.
-4. **Portfolio Compression is Possible:** A relatively small portfolio of ADRs can reproduce a broad equity index with reasonable accuracy.
+## Evaluation framework
 
----
+The project separates estimation, validation, and out-of-sample evaluation:
 
-## 6. Limitations & Future Work
+| Stage | Purpose |
+| --- | --- |
+| Estimation | Fit portfolio models |
+| Validation | Select model parameters and portfolio settings |
+| Test | Measure unseen performance |
 
-### Limitations
-* **Survivorship Bias:** The proxy universe is selected using present-day ADR listings. Delisted ADRs and historical constituents are excluded.
-* **Static Parameters:** The asset universe remains fixed, and weights are frozen at the end of 2022 (held throughout 2023 without re-optimization or rebalancing).
-* **Transaction Cost Simplification:** Modeled using fixed basis-point assumptions. Actual execution costs depend on market impact, liquidity conditions, and bid-ask spread dynamics.
-*   **Approximate historical metadata:** The initial manifest is curated and does not provide institutional-grade historical security-master or S&P 500 membership coverage.
-*   **Research data source:** Yahoo Finance data and simplified cost assumptions are suitable for research experimentation but not execution or investment accounting.
+The configured research direction uses chronological walk-forward folds. The initial workflow retains simplified assumptions around rebalancing and execution so the core replication question can be evaluated before adding live-operations complexity.
 
-### Future Enhancements
+### Metrics
 
-**Model & Factor Upgrades**
-* Elastic Net regularization
-* Alternative latent-factor architectures
-* Black-Litterman integration
-* Hierarchical Risk Parity comparison
+The evaluation tracks:
 
-**Portfolio & Benchmark Upgrades**
-* Dynamic portfolio rebalancing & Rolling retraining
-* Total-return benchmark replication
-* Multi-objective optimization (tracking error + turnover)
+- Annualized tracking error
+- Correlation with the benchmark
+- Cumulative return difference
+- Maximum drawdown
+- Residual Sharpe ratio
+- Active holdings
+- Portfolio concentration
+- Turnover and estimated transaction costs as the workflow matures
 
----
+## Diagnostics
+
+The repository includes visual diagnostics for price histories, missing observations, correlations, regularization sweeps, portfolio weights, cumulative returns, rolling tracking error, residual distributions, and neural-model learning curves.
+
+| Diagnostic | Preview |
+| --- | --- |
+| Correlation structure | ![Correlation matrix](plots/03_correlation_matrix.png) |
+| Portfolio allocations | ![Portfolio weights](plots/05_instrument_weights.png) |
+| Cumulative performance | ![Cumulative returns](plots/06_cumulative_returns.png) |
+| Rolling tracking error | ![Rolling tracking error](plots/07_rolling_tracking_error.png) |
+
+## Limitations
+
+This project intentionally stops short of production portfolio management.
+
+- **Historical metadata:** The initial universe manifest is curated and is not an institutional-grade security master.
+- **Index membership:** Historical S&P 500 membership data is approximated rather than sourced from a fully institutional point-in-time database.
+- **Market data:** Yahoo Finance is suitable for research experimentation but not investment accounting or execution.
+- **Survivorship:** Delisted and suspended securities may not be fully represented.
+- **Costs:** Transaction costs are simplified estimates and do not model market impact, spreads, taxes, or broker-specific fees.
+- **Operations:** The project does not place orders, reconcile accounts, monitor live positions, or provide investment advice.
+- **Historical relationships:** Strong backtest performance would not guarantee future tracking quality.
+
+## Roadmap
+
+### Phase 1 — Core research correctness
+
+- Complete the point-in-time universe workflow.
+- Make benchmark and price-adjustment conventions explicit.
+- Validate missing-data and corporate-action handling.
+- Enforce portfolio-size and weight constraints consistently.
+- Keep the linear tracker as the primary model.
+
+### Phase 2 — Research maturity
+
+- Run repeated walk-forward evaluations.
+- Add rebalancing and turnover accounting.
+- Report gross and net-of-cost results.
+- Add sensitivity analysis for liquidity, holding count, and cost assumptions.
+- Evaluate neural models across controlled random seeds.
+
+### Phase 3 — Optional extensions
+
+- Alternative regularization methods
+- Factor and risk-model constraints
+- Additional benchmark comparisons
+- More detailed execution-cost simulation
+- Dynamic retraining and portfolio maintenance
+
+Advanced models and live-trading infrastructure are intentionally deferred until the core research result is reliable.
+
+## Project structure
+
+```text
+.
+├── configs/
+│   ├── main.toml          # Research configuration
+│   └── universe.csv       # Versioned security manifest
+├── src/
+│   ├── data_pipeline.py   # Market-data ingestion and preprocessing
+│   ├── universe.py        # Eligibility and liquidity screening
+│   ├── features.py        # Splits and training-only scaling
+│   ├── models/            # Portfolio construction models
+│   ├── backtest.py        # Out-of-sample simulation
+│   └── diagnostics.py     # Metrics and plots
+├── tests/                 # Configuration, import, seed, and universe tests
+├── data/                  # Derived research artifacts
+├── models/                # Saved model outputs
+└── plots/                 # Diagnostic figures
+```
+
+## Disclaimer
+
+This repository is for research and educational purposes only. It is not investment advice, an offer to buy or sell securities, or a guarantee of portfolio performance.
