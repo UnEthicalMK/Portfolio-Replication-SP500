@@ -2,10 +2,11 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from src.config import load_config
 
 plt.style.use('seaborn-v0_8-whitegrid')
 
-TARGET = '^GSPC'
+TARGET = load_config().benchmark.primary
 INITIAL_CAPITAL = 1_000_000.0
 
 # Transaction cost assumptions by market liquidity
@@ -114,7 +115,7 @@ def plot_cumulative_returns(
         benchmark_cum,
         color='black',
         linewidth=2.5,
-        label='S&P 500 (Price Index)'
+        label='S&P 500 (Total Return)'
     )
 
     colors = ['steelblue', 'darkorange', 'seagreen']

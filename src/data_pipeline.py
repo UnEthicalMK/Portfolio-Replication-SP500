@@ -1,178 +1,121 @@
+"""Market-data ingestion and point-in-time universe preparation."""
+
+from __future__ import annotations
+
 import os
-import yfinance as yf
-import pandas as pd
-import numpy as np
+from pathlib import Path
+
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import seaborn as sns
+import yfinance as yf
 
-plt.style.use('seaborn-v0_8-whitegrid')
+from src.config import load_config
+from src.universe import eligible_at, load_manifest, screen_liquidity
 
-# Configuration
-START_DATE = '2014-01-01'
-END_DATE = '2023-12-31'
-TARGET = '^GSPC'
+plt.style.use("seaborn-v0_8-whitegrid")
 
-# Global ADR universe
-CHINA_HK = ['BABA', 'JD', 'BIDU', 'TME', 'NTES', 'PDD']
-TAIWAN = ['TSM', 'UMC']
-INDIA = ['INFY', 'WIT', 'HDB', 'IBN', 'RDY', 'MMYT']
-LATAM = ['MELI', 'VALE', 'PBR', 'BBD']
-EUROPE = ['ASML', 'NVO', 'SAP', 'SHEL', 'BCS']
-JAPAN = ['TM', 'SONY', 'HMC']
-SOUTH_KOREA = ['SKM', 'KB']
 
-PROXIES = CHINA_HK + TAIWAN + INDIA + LATAM + EUROPE + JAPAN + SOUTH_KOREA
-UNIVERSE = [TARGET] + PROXIES
+def ensure_directories() -> None:
+    os.makedirs("data", exist_ok=True)
+    os.makedirs("plots", exist_ok=True)
 
-def ensure_directories():
-    os.makedirs('data', exist_ok=True)
-    os.makedirs('plots', exist_ok=True)
 
-def fetch_data() -> pd.DataFrame:
-    print(f"[INFO] Downloading price data for {len(UNIVERSE)} instruments...")
+def _adjusted_close(downloaded: pd.DataFrame) -> pd.DataFrame:
+    """Return adjusted closes explicitly, with a clear fallback for indices."""
+    if isinstance(downloaded.columns, pd.MultiIndex):
+        if "Adj Close" in downloaded.columns.get_level_values(0):
+            return downloaded["Adj Close"]
+        if "Close" in downloaded.columns.get_level_values(0):
+            return downloaded["Close"]
+    if "Adj Close" in downloaded:
+        return downloaded[["Adj Close"]]
+    return downloaded[["Close"]]
 
-    data = yf.download(
-        UNIVERSE,
-        start=START_DATE,
-        end=END_DATE,
-        progress=False
+
+def fetch_data(
+    symbols: list[str],
+    start: str,
+    end: str,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Download prices and volumes without fabricating missing observations."""
+    downloaded = yf.download(
+        symbols,
+        start=start,
+        end=end,
+        auto_adjust=False,
+        progress=False,
+        group_by="column",
     )
-
-    if data.empty:
+    if downloaded.empty:
         raise ValueError("No data returned from Yahoo Finance.")
 
-    return data['Close']
+    prices = _adjusted_close(downloaded)
+    volumes = downloaded["Volume"] if "Volume" in downloaded else pd.DataFrame(index=prices.index)
+    prices = prices.reindex(columns=symbols)
+    volumes = volumes.reindex(columns=symbols)
+    prices.index = pd.to_datetime(prices.index).tz_localize(None)
+    volumes.index = pd.to_datetime(volumes.index).tz_localize(None)
+    return prices, volumes
 
-def plot_price_history(prices: pd.DataFrame):
-    print("[INFO] Generating Plot 1: Normalised Price History")
 
-    n_cols = 4
-    n_rows = int(np.ceil(prices.shape[1] / n_cols))
+def clean_and_compute_returns(prices: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Compute returns from observed prices; do not forward-fill securities."""
+    prices = prices.sort_index()
+    if prices.index.has_duplicates:
+        raise ValueError("Price data contains duplicate dates.")
+    if (prices <= 0).any().any():
+        raise ValueError("Price data contains non-positive values.")
+    returns = np.log(prices).diff()
+    return prices, returns
 
-    fig, axes = plt.subplots(
-        n_rows,
-        n_cols,
-        figsize=(16, 2.5 * n_rows),
-        sharex=True
-    )
 
-    for ax, ticker in zip(axes.flat, prices.columns):
-        valid_start = prices[ticker].first_valid_index()
-
-        if valid_start is not None:
-            # Rebase each instrument to a common starting value
-            rebased = prices[ticker] / prices[ticker].loc[valid_start] * 100
-            ax.plot(rebased, linewidth=0.8, color='steelblue')
-
-        ax.set_title(ticker, fontsize=10, fontweight='bold')
-        ax.set_ylim(bottom=0)
-        ax.grid(True, alpha=0.3)
-
-    # Hide unused subplot slots
-    for i in range(prices.shape[1], len(axes.flat)):
-        axes.flat[i].set_visible(False)
-
-    plt.suptitle(
-        "Normalised Price Levels (Base = 100, 2014–2023)",
-        fontsize=14,
-        y=0.99
-    )
-
-    plt.tight_layout()
-    plt.savefig(
-        "plots/01_price_history.png",
-        dpi=150,
-        bbox_inches='tight'
-    )
-    plt.close()
-
-def plot_missing_data(
-    prices: pd.DataFrame,
-    title_suffix: str,
-    filename: str
-):
-    print("[INFO] Generating Plot 2: Missing Data Heatmap")
-
+def _plot_missing_data(prices: pd.DataFrame) -> None:
     missing = prices.isnull().astype(int)
-
     fig, ax = plt.subplots(figsize=(14, 8))
-
-    sns.heatmap(
-        missing.T,
-        cbar=False,
-        cmap=['white', 'crimson'],
-        xticklabels=False,
-        ax=ax
-    )
-
-    ax.set_title(
-        f"Missing Data Map — Red = Missing {title_suffix}",
-        fontsize=12,
-        fontweight='bold'
-    )
-
+    sns.heatmap(missing.T, cbar=False, cmap=["white", "crimson"], xticklabels=False, ax=ax)
+    ax.set_title("Missing Data Map — Red = Missing")
     plt.tight_layout()
-    plt.savefig(
-        f"plots/{filename}",
-        dpi=150,
-        bbox_inches='tight'
-    )
+    plt.savefig("plots/02_missing_data.png", dpi=150, bbox_inches="tight")
     plt.close()
 
-def clean_and_compute_returns(
-    prices: pd.DataFrame
-) -> tuple[pd.DataFrame, pd.DataFrame]:
 
-    print("[INFO] Aligning international trading calendars...")
-
-    # Fill short holiday gaps across markets
-    prices_filled = prices.ffill(limit=5)
-
-    # Remove instruments without a complete history
-    prices_cleaned = prices_filled.dropna(axis=1)
-
-    dropped_tickers = (
-        set(prices_filled.columns)
-        - set(prices_cleaned.columns)
-    )
-
-    if dropped_tickers:
-        print(
-            f"[WARNING] Removed {len(dropped_tickers)} instruments "
-            f"with incomplete histories: {sorted(dropped_tickers)}"
-        )
-
-    if TARGET not in prices_cleaned.columns:
-        raise ValueError(
-            f"Benchmark {TARGET} was removed during cleaning."
-        )
-
-    # Compute continuously compounded daily returns
-    log_returns = np.log(prices_cleaned).diff().dropna()
-
-    return prices_cleaned, log_returns
-
-def run_data_pipeline():
+def run_data_pipeline() -> None:
+    """Download the configured universe and apply the initial prior-only screen."""
     print("\nMilestone 1 | Data Ingestion & Preprocessing")
-
     ensure_directories()
-
-    raw_prices = fetch_data()
-
-    plot_price_history(raw_prices)
-    plot_missing_data(
-        raw_prices,
-        "(Pre-Fill)",
-        "02_missing_data.png"
+    cfg = load_config()
+    manifest_path = Path(cfg.universe.manifest_path)
+    manifest = load_manifest(manifest_path)
+    formation_date = pd.Timestamp(f"{cfg.folds.first_test_year}-01-01") - pd.Timedelta(days=1)
+    eligible = eligible_at(
+        manifest,
+        formation_date,
+        cfg.universe.exchanges,
+        cfg.universe.allowed_security_types,
     )
-
-    clean_prices, log_returns = clean_and_compute_returns(raw_prices)
-
+    symbols = [cfg.benchmark.primary, *eligible.index.tolist()]
+    prices, volumes = fetch_data(symbols, cfg.download.start, cfg.download.end)
+    proxy_prices = prices.drop(columns=[cfg.benchmark.primary], errors="ignore")
+    proxy_volumes = volumes.drop(columns=[cfg.benchmark.primary], errors="ignore")
+    screened = screen_liquidity(
+        proxy_prices,
+        proxy_volumes,
+        formation_date,
+        eligible,
+        cfg.universe.liquidity_lookback_days,
+        cfg.universe.min_history_days,
+        cfg.universe.min_median_dollar_volume,
+        cfg.universe.min_valid_volume_fraction,
+    )
+    selected_symbols = [cfg.benchmark.primary, *screened.index.tolist()]
+    clean_prices, log_returns = clean_and_compute_returns(prices[selected_symbols])
     clean_prices.to_csv("data/raw_prices.csv")
     log_returns.to_csv("data/log_returns.csv")
-
+    screened.to_csv("data/eligible_universe.csv")
+    _plot_missing_data(prices[selected_symbols])
     print(
-        f"[SUCCESS] Final return matrix: "
-        f"{log_returns.shape[0]} days × "
-        f"{log_returns.shape[1]} instruments"
+        f"[SUCCESS] Retained {len(screened)} proxy securities; "
+        f"return matrix: {log_returns.shape[0]} days × {log_returns.shape[1]} instruments"
     )
