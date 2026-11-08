@@ -3,19 +3,21 @@
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Status](https://img.shields.io/badge/Status-Research%20Workflow-8A2BE2)
 
-> **Can a small, constrained portfolio of US-listed securities track the S&P 500 out of sample?**
+> **Can a small portfolio of US-listed stocks that are *not* S&P 500 constituents replicate the S&P 500 out of sample?**
 
-This repository is a research workflow for testing that question with a curated universe of common stocks, ADRs, and foreign ordinary shares traded on US exchanges. It is intentionally stronger than a prototype while remaining smaller than a live portfolio-management system.
+This repository is a research workflow for testing that question with a curated universe of common stocks, ADRs, and foreign ordinary shares traded on US exchanges. The portfolio candidates are explicitly restricted to securities that are **not constituents of the S&P 500 at the portfolio formation date**. The project is intentionally stronger than a prototype while remaining smaller than a live portfolio-management system.
 
 ## Research objective
 
-Determine whether an eligible, long-only, fully invested portfolio of US-listed securities can track the **S&P 500 Total Return Index** out of sample while respecting:
+Determine whether an eligible, long-only, fully invested portfolio of **US-listed, non-S&P 500 stocks** can track the **S&P 500 Total Return Index** out of sample while respecting:
 
 - A maximum portfolio size
 - Per-security weight caps
 - Minimum trading history
 - Prior-only liquidity constraints
 - Simplified transaction costs
+
+The benchmark is the S&P 500; its constituents are the target being replicated, not the securities eligible for portfolio construction. The experiment therefore asks whether exposure to the index can be approximated using a smaller portfolio drawn from outside the index.
 
 The project measures statistical tracking quality and simulated portfolio behavior. It does **not** claim that the resulting portfolio is a live or investment-ready substitute for the S&P 500.
 
@@ -45,6 +47,7 @@ The initial universe is maintained in [`configs/universe.csv`](configs/universe.
 | --- | --- |
 | Exchanges | NYSE, Nasdaq, NYSE American |
 | Instruments | Common stocks, ADRs, foreign ordinary shares |
+| S&P 500 membership | Exclude securities that are S&P 500 constituents at formation |
 | Excluded | ETFs, ETNs, funds, preferreds, warrants, rights, structured products |
 | Benchmark | `^SP500TR` |
 | Minimum history | 252 observations |
@@ -53,7 +56,7 @@ The initial universe is maintained in [`configs/universe.csv`](configs/universe.
 | Minimum median dollar volume | `$5 million` |
 | Valid volume requirement | 80% of lookback |
 
-The manifest is a documented research approximation. It does not provide institutional-grade historical security-master or S&P 500 membership data.
+The manifest is a documented research approximation. It does not provide institutional-grade historical security-master or historical S&P 500 membership data.
 
 ## Models
 
@@ -63,13 +66,41 @@ Ranks eligible assets by training-period correlation with the benchmark, selects
 
 ### Ridge tracker
 
-Selects a candidate subset and solves a long-only, fully invested, weight-capped optimization:
+Selects a candidate subset of non-S&P 500 securities and solves a long-only, fully invested, weight-capped optimization:
 
 $$
-\min_w \left[\operatorname{MSE}(Xw-y) + \lambda\lVert w\rVert_2^2\right]
+\underset{w}{\operatorname{minimize}}\quad
+\frac{1}{T}\sum_{t=1}^{T}\left(y_t - \sum_{i=1}^{N}w_i x_{t,i}\right)^2
+\lambda\sum_{i=1}^{N}w_i^2
 $$
+
+subject to:
+
+$$
+\sum_{i=1}^{N} w_i = 1,\qquad
+0 \leq w_i \leq w_{\max},\qquad
+\lvert\operatorname{supp}(w)\rvert \leq K
+$$
+
+where:
+
+- \(y_t\) is the S&P 500 Total Return Index return at time \(t\);
+- \(x_{t,i}\) is the return of eligible non-S&P 500 security \(i\);
+- \(w_i\) is the portfolio weight assigned to security \(i\);
+- \(\lambda\) controls weight concentration;
+- \(K\) is the maximum number of holdings.
 
 The number of holdings and regularization strength are selected using validation data only.
+
+### Tracking-error metric
+
+For portfolio return \(r_{p,t} = \sum_i w_i x_{t,i}\) and benchmark return \(r_{b,t}\), annualized tracking error is:
+
+$$
+\operatorname{TE}_{\mathrm{annualized}}
+= \sqrt{252}\;
+\operatorname{Std}\left(r_{p,t} - r_{b,t}\right)
+$$
 
 ## Evaluation
 
