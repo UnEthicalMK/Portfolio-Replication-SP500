@@ -1,4 +1,4 @@
-# --- Python ---
+# Python
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -6,16 +6,11 @@ __pycache__/
 .venv/
 .ipynb_checkpoints/
 
-# --- OS ---
+# Generated research outputs
+data/results/
+data/raw/
+
+# OS and local tooling
 .DS_Store
 Thumbs.db
-
-# --- Machine-specific tooling (not portable; local only, see S0 report) ---
 /pyrightconfig.json
-
-# NOTE (S0): data/ and plots/ remain tracked — the README embeds the plots and
-# the remaining data CSVs are the legacy pipeline's frozen artifacts (the two
-# superseded benchmark/model outputs were relocated to artifacts/legacy/ at
-# this checkpoint). Their tracking policy is revisited in S1 (immutable
-# parquet snapshots) and S4 (AC-8 regeneration). Run-churn for compiled
-# bytecode is eliminated from here on; do not re-enable __pycache__.
