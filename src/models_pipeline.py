@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+from src.config import load_config
 
 from src.models.equal_weight import train_equal_weight
 from src.models.simplex_optimizer import (
@@ -11,7 +12,7 @@ from src.models.sparse_autoencoder import train_sae
 
 plt.style.use('seaborn-v0_8-whitegrid')
 
-TARGET = '^GSPC'
+TARGET = load_config().benchmark.primary
 
 
 def ensure_directories():

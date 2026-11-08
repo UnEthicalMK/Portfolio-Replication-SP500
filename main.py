@@ -1,5 +1,6 @@
 import argparse
 import sys
+from src.config import load_config
 
 from src.data_pipeline import run_data_pipeline
 from src.features import run_feature_engineering
@@ -9,8 +10,9 @@ from src.diagnostics import run_diagnostics
 
 print("=" * 60)
 print("SYNTHETIC INDEX REPLICATION ENGINE")
-print("Benchmark: S&P 500 Price Index (^GSPC)")
-print("Universe : Global ADR Proxy Basket")
+cfg = load_config()
+print(f"Benchmark: {cfg.benchmark.primary}")
+print("Universe : Point-in-time US-listed equity manifest")
 print("=" * 60)
 
 parser = argparse.ArgumentParser(

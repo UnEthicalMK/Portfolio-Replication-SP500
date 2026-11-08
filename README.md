@@ -1,10 +1,12 @@
-# Synthetic S&P 500 Replication Using Global ADRs
+# Synthetic S&P 500 Replication Using US-Listed Securities
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-Deep_Learning-EE4C2C)
 ![SciPy](https://img.shields.io/badge/SciPy-Optimization-8CAAE6)
 
-A quantitative portfolio construction framework that replicates the daily return behavior of the S&P 500 using a universe of non-U.S. ADRs. The project compares three portfolio construction methodologies: **Equal Weight Benchmark**, **Ridge-Regularized Simplex Optimizer**, and **Sparse Autoencoder (Deep Learning)**. 
+A quantitative portfolio construction framework that evaluates whether a small, constrained portfolio of eligible securities traded on US exchanges can track the S&P 500 out of sample. The project compares three portfolio construction methodologies: **Equal Weight Benchmark**, **Ridge-Regularized Simplex Optimizer**, and **Sparse Autoencoder (Deep Learning)**.
+
+The `research-workflow` branch uses a versioned universe manifest, explicit exchange and instrument-type eligibility rules, prior-only liquidity screening, and an S&P 500 total-return target. Historical results remain research estimates rather than production trading results: the security manifest, historical index membership, and transaction-cost assumptions are documented approximations.
 
 The objective is to determine whether a small portfolio of global equities can synthetically reproduce the return characteristics of a large-cap U.S. equity index.
 
@@ -36,7 +38,11 @@ Can the daily return profile of the S&P 500 be replicated using a sparse portfol
 ## 2. Data & Feature Engineering
 
 ### Universe Construction
-* **Target:** S&P 500 Price Index (`^GSPC`)
+*   **Target:** S&P 500 Total Return Index (`^SP500TR`)
+*   **Eligible venues:** NYSE, Nasdaq, and NYSE American
+*   **Eligible instruments:** Common stocks, ADRs, and foreign ordinary shares
+*   **Excluded instruments:** ETFs, ETNs, funds, preferred shares, warrants, rights, and structured products
+*   **Liquidity screen:** Prior 252-observation median dollar volume with a minimum valid-observation fraction
 
 | Proxy Universe (29 Global ADRs) | Details |
 | :--- | :--- |
@@ -53,11 +59,11 @@ Can the daily return profile of the S&P 500 be replicated using a sparse portfol
 | **Test** | 2023 |
 
 **Processing Steps:**
-1. Download adjusted closing prices using Yahoo Finance
-2. Align international trading calendars
-3. Forward-fill holiday gaps (maximum 5 days)
-4. Remove securities with incomplete histories
-5. Compute log returns
+1. Load the versioned security manifest and apply point-in-time eligibility rules
+2. Download adjusted closing prices and volumes using Yahoo Finance
+3. Apply the prior-only history and median-dollar-volume screen
+4. Preserve missing observations instead of forward-filling securities
+5. Compute log returns from observed prices
 
 **Data Quality Diagnostics:**
 ![Price History](plots/01_price_history.png)
@@ -152,7 +158,8 @@ Metrics tracked include Tracking Error, Correlation, Maximum Drawdown, Residual 
 * **Survivorship Bias:** The proxy universe is selected using present-day ADR listings. Delisted ADRs and historical constituents are excluded.
 * **Static Parameters:** The asset universe remains fixed, and weights are frozen at the end of 2022 (held throughout 2023 without re-optimization or rebalancing).
 * **Transaction Cost Simplification:** Modeled using fixed basis-point assumptions. Actual execution costs depend on market impact, liquidity conditions, and bid-ask spread dynamics.
-* **Price Index Benchmark:** The benchmark uses the S&P 500 Price Index (`^GSPC`) rather than a Total Return Index, meaning dividend effects are ignored.
+*   **Approximate historical metadata:** The initial manifest is curated and does not provide institutional-grade historical security-master or S&P 500 membership coverage.
+*   **Research data source:** Yahoo Finance data and simplified cost assumptions are suitable for research experimentation but not execution or investment accounting.
 
 ### Future Enhancements
 
