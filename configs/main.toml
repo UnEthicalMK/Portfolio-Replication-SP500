@@ -23,8 +23,13 @@ start = "2007-01-01"              # covers W_refit(2014) = 2007-12-31 → 2013-1
 end = "2023-12-31"
 
 [universe]                        # Spec §2 (point-in-time rules; module arrives in S1)
+manifest_path = "configs/universe.csv"
+exchanges = ["NYSE", "NASDAQ", "NYSE American"]
+allowed_security_types = ["common_stock", "adr", "foreign_ordinary"]
 min_history_days = 252            # listed >= 12 months at fold start
 min_median_dollar_volume = 5000000
+liquidity_lookback_days = 252
+min_valid_volume_fraction = 0.8
 
 [estimation]                      # Spec §1.2
 cash_park_return = 0.0            # zero-return parking, pre-first-return days ONLY (F-3)

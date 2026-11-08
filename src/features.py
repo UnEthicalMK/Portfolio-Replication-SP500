@@ -8,10 +8,11 @@ import scipy.cluster.hierarchy as hc
 
 from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import pdist
+from src.config import load_config
 
 plt.style.use('seaborn-v0_8-whitegrid')
 
-TARGET = '^GSPC'
+TARGET = load_config().benchmark.primary
 
 TRAIN_END = '2021-12-31'
 VAL_START = '2022-01-01'
