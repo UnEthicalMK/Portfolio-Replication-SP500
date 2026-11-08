@@ -56,6 +56,19 @@ class CostConfig:
 
 
 @dataclass(frozen=True)
+class SAEConfig:
+    latent_dim: int
+    dropout: float
+    noise_sigma: float
+    reconstruction_weight: float
+    l1_weight: float
+    learning_rate: float
+    epochs: int
+    patience: int
+    seeds: tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class PipelineConfig:
     benchmark: BenchmarkConfig
     download: DownloadConfig
@@ -63,6 +76,7 @@ class PipelineConfig:
     folds: FoldConfig
     optimizer: OptimizerConfig
     costs: CostConfig
+    sae: SAEConfig
     output_dir: str
 
 
@@ -89,6 +103,17 @@ def load_config(path: str | Path | None = None) -> PipelineConfig:
             alphas=tuple(float(alpha) for alpha in raw["optimizer"]["alphas"]),
         ),
         costs=CostConfig(default_bps=float(raw["costs"]["default_bps"])),
+        sae=SAEConfig(
+            latent_dim=int(raw["sae"]["latent_dim"]),
+            dropout=float(raw["sae"]["dropout"]),
+            noise_sigma=float(raw["sae"]["noise_sigma"]),
+            reconstruction_weight=float(raw["sae"]["reconstruction_weight"]),
+            l1_weight=float(raw["sae"]["l1_weight"]),
+            learning_rate=float(raw["sae"]["learning_rate"]),
+            epochs=int(raw["sae"]["epochs"]),
+            patience=int(raw["sae"]["patience"]),
+            seeds=tuple(int(seed) for seed in raw["sae"]["seeds"]),
+        ),
         output_dir=str(raw["outputs"]["directory"]),
     )
     validate_config(cfg)
@@ -116,5 +141,13 @@ def validate_config(cfg: PipelineConfig) -> None:
         raise ValueError("optimizer.alphas must be positive")
     if cfg.costs.default_bps < 0:
         raise ValueError("default_bps cannot be negative")
+    if cfg.sae.latent_dim < 1 or not 0 <= cfg.sae.dropout < 1:
+        raise ValueError("SAE latent_dim and dropout are invalid")
+    if cfg.sae.noise_sigma < 0 or cfg.sae.reconstruction_weight < 0 or cfg.sae.l1_weight < 0:
+        raise ValueError("SAE regularization values cannot be negative")
+    if cfg.sae.learning_rate <= 0 or cfg.sae.epochs < 1 or cfg.sae.patience < 1:
+        raise ValueError("SAE training settings are invalid")
+    if not cfg.sae.seeds:
+        raise ValueError("At least one SAE seed is required")
     if cfg.folds.first_test_year > cfg.folds.last_test_year:
         raise ValueError("first_test_year must not exceed last_test_year")

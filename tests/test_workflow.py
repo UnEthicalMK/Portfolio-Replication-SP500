@@ -4,6 +4,7 @@ import pandas as pd
 from src.config import load_config
 from src.folds import make_walk_forward_folds
 from src.models import equal_weight, select_ridge
+from src.sae import train_sae_candidate
 from src.reporting import generate_report_plots
 
 
@@ -33,6 +34,25 @@ def test_models_are_long_only_and_fully_invested():
 def test_current_config_loads():
     cfg = load_config()
     assert cfg.benchmark.primary == "^SP500TR"
+
+
+def test_sae_returns_validation_aligned_sparse_portfolio():
+    torch = __import__("torch")
+    rng = np.random.default_rng(7)
+    dates = pd.date_range("2020-01-01", periods=30)
+    X = pd.DataFrame(rng.normal(size=(30, 4)), index=dates, columns=list("ABCD"))
+    y = pd.Series(rng.normal(size=30), index=dates)
+    weights, _ = train_sae_candidate(
+        X.iloc[:20], y.iloc[:20], X.iloc[20:], y.iloc[20:],
+        k=2, w_max=0.6, latent_dim=2, dropout=0.0, noise_sigma=0.0,
+        reconstruction_weight=0.1, l1_weight=0.001,
+        learning_rate=0.01, epochs=3, patience=2, seed=1,
+    )
+    assert torch is not None
+    assert np.isclose(weights.sum(), 1)
+    assert (weights >= 0).all()
+    assert (weights > 0).sum() == 2
+    assert (weights <= 0.6 + 1e-8).all()
 
 
 def test_report_generates_plot_files(tmp_path):

@@ -31,5 +31,16 @@ alphas = [0.0001, 0.001, 0.01, 0.1]
 [costs]
 default_bps = 10
 
+[sae]
+latent_dim = 3
+dropout = 0.1
+noise_sigma = 0.01
+reconstruction_weight = 0.25
+l1_weight = 0.0005
+learning_rate = 0.003
+epochs = 300
+patience = 30
+seeds = [0, 1, 2]
+
 [outputs]
 directory = "data/results"

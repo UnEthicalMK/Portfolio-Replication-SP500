@@ -10,6 +10,7 @@ from src.config import PipelineConfig
 from src.evaluate import apply_initial_cost, evaluate_returns, portfolio_returns
 from src.folds import make_walk_forward_folds
 from src.models import equal_weight, select_ridge
+from src.sae import select_sae
 
 
 def _complete_columns(returns: pd.DataFrame, columns: list[str]) -> list[str]:
@@ -53,6 +54,11 @@ def run_walk_forward(
             cfg.optimizer.k_set, cfg.optimizer.alphas, cfg.optimizer.w_max,
         )
         model_weights["ridge"] = ridge_weights
+        sae_weights, sae_metadata = select_sae(
+            X_train, y_train, X_val, y_val,
+            cfg.optimizer.k_set, cfg.optimizer.w_max, cfg.sae,
+        )
+        model_weights["sae"] = sae_weights
 
         for model_name, weights in model_weights.items():
             p_returns = portfolio_returns(X_test, weights)
@@ -65,8 +71,13 @@ def run_walk_forward(
                 {
                     "test_year": fold.test_year,
                     "model": model_name,
-                    "selected_k": metadata["k"] if model_name == "ridge" else float((weights > 0).sum()),
+                    "selected_k": (
+                        metadata["k"] if model_name == "ridge"
+                        else sae_metadata["k"] if model_name == "sae"
+                        else float((weights > 0).sum())
+                    ),
                     "alpha": metadata["alpha"] if model_name == "ridge" else float("nan"),
+                    "seed": sae_metadata["seed"] if model_name == "sae" else float("nan"),
                     **metrics,
                 }
             )

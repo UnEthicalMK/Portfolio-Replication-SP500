@@ -34,7 +34,7 @@ Explicit adjusted-price returns
             ↓
 Walk-forward estimation / validation / test folds
             ↓
-Equal-weight and constrained ridge trackers
+Equal-weight, constrained ridge, and sparse autoencoder trackers
             ↓
 Out-of-sample metrics and saved results
 ```
@@ -92,6 +92,17 @@ where:
 - \(K\) is the maximum number of holdings.
 
 The number of holdings and regularization strength are selected using validation data only.
+
+### Sparse autoencoder
+
+The sparse autoencoder is a first-class research model. It jointly learns:
+
+1. A latent representation of the eligible non-S&P 500 return matrix.
+2. A reconstruction of the input returns.
+3. A benchmark-tracking signal.
+4. Non-negative portfolio weights through a softmax portfolio head.
+
+For each configured holding count and random seed, the dense signal is converted to the exact top-\(K\) portfolio used for validation. Early stopping and model selection therefore score the same sparse weights that are later applied to the test fold. The model is retained only as a research comparison against the transparent baseline and ridge tracker.
 
 ### Tracking-error metric
 
