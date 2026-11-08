@@ -3,27 +3,21 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sp500-adr-replication"
+name = "sp500-replication-research"
 version = "0.1.0"
-description = "S&P 500 proxy replication via global ADRs — research study (Research Specification v1.2.1)"
+description = "Research workflow for S&P 500 tracking with US-listed securities"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    # Pinned to the environment the audit verified all results against (S0).
-    "numpy==2.4.4",
-    "pandas==3.0.2",
-    "scipy==1.18.1",
-    "scikit-learn==1.9.0",
-    "torch==2.14.1",        # installed locally as 2.14.1+cpu (CPU-only wheel)
-    "yfinance==1.7.0",
-    "joblib==1.6.0",
-    "matplotlib==3.10.8",
-    "seaborn==0.13.2",
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "scipy>=1.11",
+    "yfinance>=0.2",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest==9.1.1",
+    "pytest>=8",
 ]
 
 [tool.setuptools.packages.find]
