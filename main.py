@@ -1,60 +1,42 @@
+"""Command-line entry point for the research workflow."""
+
+from __future__ import annotations
+
 import argparse
-import sys
+from pathlib import Path
+
+import pandas as pd
+
 from src.config import load_config
+from src.data_pipeline import prepare_universe_data, save_data
+from src.seeds import set_seed
+from src.workflow import run_walk_forward, save_results
 
-from src.data_pipeline import run_data_pipeline
-from src.features import run_feature_engineering
-from src.models_pipeline import run_models_pipeline
-from src.backtest import run_backtest
-from src.diagnostics import run_diagnostics
 
-print("=" * 60)
-print("SYNTHETIC INDEX REPLICATION ENGINE")
-cfg = load_config()
-print(f"Benchmark: {cfg.benchmark.primary}")
-print("Universe : Point-in-time US-listed equity manifest")
-print("=" * 60)
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run the US-listed S&P 500 replication workflow")
+    parser.add_argument("--config", default=None, help="Path to a TOML configuration file")
+    parser.add_argument("--download", action="store_true", help="Download and save market data")
+    parser.add_argument("--evaluate", action="store_true", help="Run walk-forward evaluation")
+    args = parser.parse_args()
+    if not args.download and not args.evaluate:
+        parser.print_help()
+        return
+    cfg = load_config(args.config)
+    set_seed(42)
+    output = Path(cfg.output_dir)
 
-parser = argparse.ArgumentParser(
-    description="Execute the Synthetic Index Replication Pipeline."
-)
+    if args.download:
+        prices, returns, manifest = prepare_universe_data(cfg)
+        save_data(prices, returns, manifest, output)
+    if args.evaluate:
+        returns_path = output / "returns.csv"
+        if not returns_path.exists():
+            raise FileNotFoundError("Run with --download before --evaluate")
+        returns = pd.read_csv(returns_path, index_col=0, parse_dates=True)
+        result_path = save_results(run_walk_forward(returns, cfg), output)
+        print(f"Saved walk-forward metrics to {result_path}")
 
-# Execution Flags
-parser.add_argument('--all', action='store_true',
-                    help='Run the complete end-to-end pipeline')
-parser.add_argument('--data', action='store_true',
-                    help='Milestone 1: Download and preprocess market data')
-parser.add_argument('--features', action='store_true',
-                    help='Milestone 2: Feature engineering and scaling')
-parser.add_argument('--models', action='store_true',
-                    help='Milestone 3: Train portfolio replication models')
-parser.add_argument('--backtest', action='store_true',
-                    help='Milestone 4: Execute out-of-sample backtest')
-parser.add_argument('--diagnostics', action='store_true',
-                    help='Milestone 5: Generate performance diagnostics')
 
-args = parser.parse_args()
-
-# Default Behaviour
-if len(sys.argv) == 1:
-    print("\n[INFO] No command-line arguments detected.")
-    print("[INFO] Executing complete pipeline (--all).\n")
-    args.all = True
-
-# Pipeline Execution
-if args.all or args.data:
-    run_data_pipeline()
-
-if args.all or args.features:
-    run_feature_engineering()
-
-if args.all or args.models:
-    run_models_pipeline()
-
-if args.all or args.backtest:
-    run_backtest()
-
-if args.all or args.diagnostics:
-    run_diagnostics()
-
-print("\n[SUCCESS] Pipeline execution completed.")
+if __name__ == "__main__":
+    main()
