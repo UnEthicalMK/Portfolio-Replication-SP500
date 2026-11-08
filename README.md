@@ -71,6 +71,7 @@ Selects a candidate subset of non-S&P 500 securities and solves a long-only, ful
 $$
 \underset{w}{\operatorname{minimize}}\quad
 \frac{1}{T}\sum_{t=1}^{T}\left(y_t - \sum_{i=1}^{N}w_i x_{t,i}\right)^2
+\;+\;
 \lambda\sum_{i=1}^{N}w_i^2
 $$
 
@@ -156,6 +157,18 @@ The report writes the following figures to `data/results/plots/`:
 | `tracking_error_by_fold.png` | Compare tracking error across test years |
 | `portfolio_vs_benchmark_returns.png` | Compare mean portfolio and benchmark returns |
 | `model_quality_summary.png` | Compare tracking error, correlation, and active holdings |
+
+### Illustrative report preview
+
+The repository includes deterministic, synthetic preview figures to demonstrate the report layout before a market-data download is available. **These are not empirical results and must not be interpreted as evidence of replication performance.**
+
+![Illustrative tracking error](docs/plots/illustrative_tracking_error_by_fold.png)
+
+![Illustrative model quality](docs/plots/illustrative_model_quality_summary.png)
+
+![Illustrative return comparison](docs/plots/illustrative_portfolio_vs_benchmark_returns.png)
+
+Generate empirical plots only after running `--download` and `--evaluate`. Those plots are written to `data/results/plots/` and are intentionally not committed as source-controlled results.
 
 Run tests:
 
