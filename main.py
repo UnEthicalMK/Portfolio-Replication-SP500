@@ -10,6 +10,7 @@ import pandas as pd
 from src.config import load_config
 from src.data_pipeline import prepare_universe_data, save_data
 from src.seeds import set_seed
+from src.reporting import generate_report_plots
 from src.workflow import run_walk_forward, save_results
 
 
@@ -18,8 +19,9 @@ def main() -> None:
     parser.add_argument("--config", default=None, help="Path to a TOML configuration file")
     parser.add_argument("--download", action="store_true", help="Download and save market data")
     parser.add_argument("--evaluate", action="store_true", help="Run walk-forward evaluation")
+    parser.add_argument("--report", action="store_true", help="Generate plots from saved metrics")
     args = parser.parse_args()
-    if not args.download and not args.evaluate:
+    if not args.download and not args.evaluate and not args.report:
         parser.print_help()
         return
     cfg = load_config(args.config)
@@ -36,6 +38,15 @@ def main() -> None:
         returns = pd.read_csv(returns_path, index_col=0, parse_dates=True)
         result_path = save_results(run_walk_forward(returns, cfg), output)
         print(f"Saved walk-forward metrics to {result_path}")
+    if args.report:
+        metrics_path = output / "walk_forward_metrics.csv"
+        if not metrics_path.exists():
+            raise FileNotFoundError("Run with --evaluate before --report")
+        plot_paths = generate_report_plots(
+            pd.read_csv(metrics_path),
+            output / "plots",
+        )
+        print(f"Generated {len(plot_paths)} plots in {output / 'plots'}")
 
 
 if __name__ == "__main__":

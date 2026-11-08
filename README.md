@@ -143,6 +143,20 @@ Run walk-forward evaluation using saved returns:
 python main.py --evaluate
 ```
 
+Generate research plots from the saved fold metrics:
+
+```bash
+python main.py --report
+```
+
+The report writes the following figures to `data/results/plots/`:
+
+| Plot | Purpose |
+| --- | --- |
+| `tracking_error_by_fold.png` | Compare tracking error across test years |
+| `portfolio_vs_benchmark_returns.png` | Compare mean portfolio and benchmark returns |
+| `model_quality_summary.png` | Compare tracking error, correlation, and active holdings |
+
 Run tests:
 
 ```bash
