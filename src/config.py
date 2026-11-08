@@ -49,8 +49,13 @@ class DownloadConfig:
 
 @dataclass(frozen=True)
 class UniverseConfig:
+    manifest_path: str
+    exchanges: tuple[str, ...]
+    allowed_security_types: tuple[str, ...]
     min_history_days: int
     min_median_dollar_volume: float
+    liquidity_lookback_days: int
+    min_valid_volume_fraction: float
 
 
 @dataclass(frozen=True)
@@ -231,6 +236,14 @@ def _validate(cfg: PipelineConfig) -> None:
         raise ValueError("universe.min_history_days must be >= 1")
     if cfg.universe.min_median_dollar_volume <= 0:
         raise ValueError("universe.min_median_dollar_volume must be > 0")
+    if not cfg.universe.exchanges:
+        raise ValueError("universe.exchanges must not be empty")
+    if not cfg.universe.allowed_security_types:
+        raise ValueError("universe.allowed_security_types must not be empty")
+    if cfg.universe.liquidity_lookback_days < cfg.universe.min_history_days:
+        raise ValueError("universe.liquidity_lookback_days must cover min_history_days")
+    if not 0 < cfg.universe.min_valid_volume_fraction <= 1:
+        raise ValueError("universe.min_valid_volume_fraction must lie in (0, 1]")
 
     # -- Costs (Spec §4.4) ----------------------------------------------
     if cfg.costs.em_adr_bps <= 0 or cfg.costs.dm_adr_bps <= 0:

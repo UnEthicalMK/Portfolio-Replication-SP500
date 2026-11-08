@@ -2,6 +2,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+from src.config import load_config
+
+TARGET_LABEL = load_config().benchmark.primary
 
 plt.style.use('seaborn-v0_8-whitegrid')
 
@@ -70,7 +73,7 @@ def plot_residual_distribution(port_returns: pd.DataFrame,
                 color=color, linewidth=1.5)
 
     ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
-    ax.set_title("Residual Distribution — Portfolio minus S&P 500 (2023)",
+    ax.set_title(f"Residual Distribution — Portfolio minus {TARGET_LABEL} (2023)",
                  fontsize=12, fontweight='bold')
     ax.set_xlabel("Daily Residual")
     ax.set_ylabel("Density")
