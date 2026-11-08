@@ -47,4 +47,4 @@ if args.all or args.backtest:
 if args.all or args.diagnostics:
     run_diagnostics()
 
-print("\n[✔] Institutional Pipeline Execution Completed Successfully.")
+print("\n[OK] Pipeline execution completed successfully.")

@@ -32,7 +32,7 @@ def compute_metrics(port_returns: pd.DataFrame, bench_returns: pd.Series, weight
         te = residuals.std() * np.sqrt(252)
         
         # 2. Cumulative Return 2023
-        cum_ret = (1 + p_ret).prod() - 1
+        cum_ret = np.expm1(p_ret.sum())
         
         # 3. Max Single-Day Deviation (absolute)
         max_dev = residuals.abs().max()
@@ -41,7 +41,11 @@ def compute_metrics(port_returns: pd.DataFrame, bench_returns: pd.Series, weight
         active_count = (weights_df[model] > 1e-4).sum()
         
         # 5. Sharpe Ratio of Residuals
-        resid_sharpe = (residuals.mean() / residuals.std()) * np.sqrt(252)
+        residual_std = residuals.std()
+        resid_sharpe = (
+            (residuals.mean() / residual_std) * np.sqrt(252)
+            if residual_std > 0 else np.nan
+        )
         
         metrics[model] = {
             "Tracking Error (Ann.)": f"{te:.4f}",
@@ -51,7 +55,7 @@ def compute_metrics(port_returns: pd.DataFrame, bench_returns: pd.Series, weight
             "Residual Sharpe": f"{resid_sharpe:.2f}"
         }
         
-    bench_cum = (1 + bench_returns).prod() - 1
+    bench_cum = np.expm1(bench_returns.sum())
     
     df = pd.DataFrame(metrics)
     print("\n---------------------------------------------------------")
@@ -116,10 +120,10 @@ def print_performance_metrics(metrics_dict: dict):
     print("-" * 80)
     
     row_te = (f"{'Tracking Error':<{col_1}}"
-              f"{metrics_dict['Lasso']['te'] * 100:<{col_2}.3f}%"
-              f"{metrics_dict['SAE']['te'] * 100:<{col_3}.3f}%"
-              f"{metrics_dict['Equal_Weight']['te'] * 100:<{col_4}.3f}%"
-              f"{0.0:<{col_5}.2f}%")
+              f"{metrics_dict['Lasso']['te'] * 100:>{col_2 - 1}.3f}%"
+              f"{metrics_dict['SAE']['te'] * 100:>{col_3 - 1}.3f}%"
+              f"{metrics_dict['Equal_Weight']['te'] * 100:>{col_4 - 1}.3f}%"
+              f"{0.0:>{col_5 - 1}.2f}%")
     print(row_te)
     
     row_corr = (f"{'Correlation':<{col_1}}"
@@ -130,10 +134,10 @@ def print_performance_metrics(metrics_dict: dict):
     print(row_corr)
     
     row_mdd = (f"{'Max Drawdown':<{col_1}}"
-               f"{metrics_dict['Lasso']['mdd'] * 100:<{col_2}.2f}%"
-               f"{metrics_dict['SAE']['mdd'] * 100:<{col_3}.2f}%"
-               f"{metrics_dict['Equal_Weight']['mdd'] * 100:<{col_4}.2f}%"
-               f"{metrics_dict['S&P 500']['mdd'] * 100:<{col_5}.2f}%")
+               f"{metrics_dict['Lasso']['mdd'] * 100:>{col_2 - 1}.2f}%"
+               f"{metrics_dict['SAE']['mdd'] * 100:>{col_3 - 1}.2f}%"
+               f"{metrics_dict['Equal_Weight']['mdd'] * 100:>{col_4 - 1}.2f}%"
+               f"{metrics_dict['S&P 500']['mdd'] * 100:>{col_5 - 1}.2f}%")
     print(row_mdd)
     
     row_stocks = (f"{'Stocks Used':<{col_1}}"
@@ -155,6 +159,22 @@ def run_diagnostics():
     returns_df = pd.read_csv('data/oos_portfolio_returns.csv', index_col=0, parse_dates=True)
     weights_df = pd.read_csv('models/frozen_weights_2022.csv', index_col=0)
     
+    if 'S&P 500 (Target)' not in returns_df.columns:
+        raise ValueError("Backtest output is missing the S&P 500 benchmark returns.")
+
+    required_models = {'Equal_Weight', 'Lasso', 'SAE'}
+    missing_models = required_models.difference(returns_df.columns)
+    if missing_models:
+        raise ValueError(
+            f"Backtest output is missing model returns: {sorted(missing_models)}"
+        )
+
+    missing_weights = required_models.difference(weights_df.columns)
+    if missing_weights:
+        raise ValueError(
+            f"Frozen weights are missing model columns: {sorted(missing_weights)}"
+        )
+
     bench_returns = returns_df['S&P 500 (Target)']
     port_returns = returns_df.drop(columns=['S&P 500 (Target)'])
     
@@ -167,7 +187,8 @@ def run_diagnostics():
     for model in ['Equal_Weight', 'Lasso', 'SAE']:
         p_ret = port_returns[model]
         
-        te = np.std(p_ret - bench_returns) * np.sqrt(252)
+        residuals = p_ret - bench_returns
+        te = np.std(residuals) * np.sqrt(252)
         corr = p_ret.corr(bench_returns)
         mdd = calculate_max_drawdown(p_ret)
         stocks_used = int((weights_df[model] > 1e-4).sum())

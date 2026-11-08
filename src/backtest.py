@@ -45,11 +45,38 @@ def load_backtest_data() -> tuple:
     raw_prices = pd.read_csv('data/raw_prices.csv', index_col=0, parse_dates=True)
     prices_2023 = raw_prices.loc['2023-01-01':'2023-12-31']
     weights = pd.read_csv('models/frozen_weights_2022.csv', index_col=0)
+
+    if prices_2023.empty:
+        raise ValueError("No price data is available for the 2023 backtest period.")
+    if TARGET not in prices_2023.columns:
+        raise ValueError(f"Backtest prices are missing the benchmark column: {TARGET}")
+    if weights.empty:
+        raise ValueError("Frozen portfolio weights are empty.")
+
     return prices_2023, weights
 
 def simulate_buy_and_hold(prices: pd.DataFrame, weights_df: pd.DataFrame) -> tuple:
     print("Executing buy-and-hold backtest with Global ADR transaction costs...")
     models = weights_df.columns
+    proxy_prices = prices.drop(columns=[TARGET])
+
+    missing_assets = weights_df.index.difference(proxy_prices.columns)
+    if not missing_assets.empty:
+        raise ValueError(
+            f"Frozen weights contain assets missing from prices: {missing_assets.tolist()}"
+        )
+
+    for model in models:
+        model_weights = weights_df[model].fillna(0.0)
+        if not np.isfinite(model_weights).all():
+            raise ValueError(f"Model {model} contains non-finite portfolio weights.")
+        if (model_weights < 0).any():
+            raise ValueError(f"Model {model} contains negative portfolio weights.")
+        if not np.isclose(model_weights.sum(), 1.0, atol=1e-6):
+            raise ValueError(
+                f"Model {model} weights must sum to 1.0; got {model_weights.sum():.8f}."
+            )
+
     portfolio_values = pd.DataFrame(index=prices.index, columns=models)
     p0 = prices.iloc[0]
     
@@ -66,7 +93,6 @@ def simulate_buy_and_hold(prices: pd.DataFrame, weights_df: pd.DataFrame) -> tup
         shares = capital_after_fees / p0.drop(TARGET, errors='ignore')
         shares = shares.fillna(0)
         
-        proxy_prices = prices.drop(columns=[TARGET])
         daily_value = proxy_prices.dot(shares)
         portfolio_values[model] = daily_value
         

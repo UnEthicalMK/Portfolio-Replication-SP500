@@ -50,6 +50,10 @@ def train_lasso(
             constraints=constraints,
             options={'ftol': 1e-9, 'maxiter': 1000}
         )
+        if not res.success:
+            raise RuntimeError(
+                f"Simplex optimization failed for alpha={alpha:.8f}: {res.message}"
+            )
         w_opt = res.x
 
         w_opt[w_opt < 1e-4] = 0.0

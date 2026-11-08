@@ -39,6 +39,13 @@ def load_data():
 
 def partition_data(df):
 
+    if TARGET not in df.columns:
+        raise ValueError(f"Return data is missing the benchmark column: {TARGET}")
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise TypeError("Return data must use a DatetimeIndex.")
+    if not df.index.is_monotonic_increasing:
+        raise ValueError("Return data index must be sorted in ascending order.")
+
     y = df[TARGET]
     X = df.drop(columns=[TARGET])
 
@@ -50,6 +57,14 @@ def partition_data(df):
 
     X_test = X.loc[TEST_START:]
     y_test = y.loc[TEST_START:]
+
+    for name, split in {
+        "train": X_train,
+        "validation": X_val,
+        "test": X_test,
+    }.items():
+        if split.empty:
+            raise ValueError(f"{name.capitalize()} split is empty.")
 
     print(f"  Train: {X_train.shape[0]} rows")
     print(f"  Val:   {X_val.shape[0]} rows")
