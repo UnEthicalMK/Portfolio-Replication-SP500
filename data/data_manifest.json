@@ -1,0 +1,9 @@
+{
+  "benchmark": "^SP500TR",
+  "start_date": "2010-01-01",
+  "end_date": "2023-12-31",
+  "candidate_count": 50,
+  "final_asset_count": 23,
+  "forward_fill_limit": 3,
+  "minimum_train_coverage": 0.95
+}

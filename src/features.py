@@ -7,31 +7,29 @@ import joblib
 from sklearn.preprocessing import StandardScaler
 import scipy.cluster.hierarchy as hc
 from scipy.spatial.distance import pdist  # FIX: Correct module import
+from src.config import (
+    DATA_DIR,
+    MODELS_DIR,
+    PLOTS_DIR,
+    TARGET,
+    TEST_START,
+    TRAIN_END,
+    VAL_END,
+    VAL_START,
+)
 
 plt.style.use('seaborn-v0_8-whitegrid')
 
-TARGET = '^SP500TR'
-
-# =========================================================
-# SINGLE SOURCE OF TRUTH FOR ALL SPLITS
-# =========================================================
-
-TRAIN_END = '2021-12-31'
-VAL_START = '2022-01-01'
-VAL_END = '2022-12-31'
-TEST_START = '2023-01-01'
-
-
 def ensure_directories():
-    os.makedirs('data', exist_ok=True)
-    os.makedirs('plots', exist_ok=True)
-    os.makedirs('models', exist_ok=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def load_data():
     print("Loading log returns...")
     return pd.read_csv(
-        'data/log_returns.csv',
+        DATA_DIR / 'log_returns.csv',
         index_col=0,
         parse_dates=True
     )
@@ -122,7 +120,7 @@ def plot_correlation_matrix(X_train):
 
     plt.tight_layout()
     plt.savefig(
-        "plots/03_correlation_matrix.png",
+        PLOTS_DIR / "03_correlation_matrix.png",
         dpi=150
     )
     plt.close()
@@ -193,21 +191,21 @@ def run_feature_engineering():
     # =====================================================
     # Save scaled datasets
     # =====================================================
-    X_train_scaled.to_csv('data/X_train_scaled.csv')
-    X_val_scaled.to_csv('data/X_val_scaled.csv')
-    X_test_scaled.to_csv('data/X_test_scaled.csv')
+    X_train_scaled.to_csv(DATA_DIR / 'X_train_scaled.csv')
+    X_val_scaled.to_csv(DATA_DIR / 'X_val_scaled.csv')
+    X_test_scaled.to_csv(DATA_DIR / 'X_test_scaled.csv')
 
     # =====================================================
     # Save unscaled datasets
     # =====================================================
-    X_train.to_csv('data/X_train_unscaled.csv')
-    X_val.to_csv('data/X_val_unscaled.csv')
-    X_test.to_csv('data/X_test_unscaled.csv')
+    X_train.to_csv(DATA_DIR / 'X_train_unscaled.csv')
+    X_val.to_csv(DATA_DIR / 'X_val_unscaled.csv')
+    X_test.to_csv(DATA_DIR / 'X_test_unscaled.csv')
 
-    y_train.to_csv('data/y_train.csv')
-    y_val.to_csv('data/y_val.csv')
-    y_test.to_csv('data/y_test.csv')
+    y_train.to_csv(DATA_DIR / 'y_train.csv')
+    y_val.to_csv(DATA_DIR / 'y_val.csv')
+    y_test.to_csv(DATA_DIR / 'y_test.csv')
 
-    joblib.dump(scaler, 'models/scaler.pkl')
+    joblib.dump(scaler, MODELS_DIR / 'scaler.pkl')
 
     print("Milestone 2 Complete. Datasets partitioned, scaled, and saved.\n")

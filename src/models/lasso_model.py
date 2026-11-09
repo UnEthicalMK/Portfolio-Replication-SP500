@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
+from src.config import PLOTS_DIR
 
 plt.style.use('seaborn-v0_8-whitegrid')
 
@@ -11,9 +12,16 @@ def train_lasso(
     X_val: pd.DataFrame,
     y_val: pd.Series,
     min_assets: int = 3,
-    max_assets: int = 15
+    max_assets: int = 15,
+    verbose: bool = True,
 ):
-    print("Training Model B: Strict Simplex Optimizer (Scaled for Precision)...")
+    if not 1 <= min_assets <= max_assets:
+        raise ValueError("Sparsity bounds must satisfy 1 <= min_assets <= max_assets.")
+    if max_assets > X_train.shape[1]:
+        raise ValueError("max_assets cannot exceed the number of candidate assets.")
+
+    if verbose:
+        print("Training Model B: long-only simplex optimizer with L2 regularization...")
 
     # THE FIX: Multiply by 100 to escape the 1e-6 floating-point trap
     X_tr = X_train.values * 100.0
@@ -57,8 +65,14 @@ def train_lasso(
         w_opt = res.x
 
         w_opt[w_opt < 1e-4] = 0.0
-        if np.sum(w_opt) > 0:
-            w_opt = w_opt / np.sum(w_opt)
+        top_assets = np.argsort(w_opt)[-max_assets:]
+        sparse_weights = np.zeros_like(w_opt)
+        sparse_weights[top_assets] = w_opt[top_assets]
+        if np.sum(sparse_weights) <= 0:
+            raise RuntimeError(
+                f"Optimizer produced no positive weights for alpha={alpha:.8f}."
+            )
+        w_opt = sparse_weights / np.sum(sparse_weights)
 
         models_weights.append(w_opt)
 
@@ -76,16 +90,20 @@ def train_lasso(
 
     if valid_candidates:
         best_idx = min(valid_candidates, key=lambda x: x[0])[1]
-        print(f"  Selected optimal alpha from sparse region ({asset_counts[best_idx]} assets)")
+        if verbose:
+            print(f"  Selected optimal alpha from sparse region ({asset_counts[best_idx]} assets)")
     else:
-        print("  WARNING: No alpha satisfied sparsity constraint. Falling back to minimum TE.")
-        best_idx = np.argmin(tracking_errors)
+        raise RuntimeError("No optimizer candidate satisfied the sparsity bounds.")
 
     best_weights = models_weights[best_idx]
     best_alpha = alphas[best_idx]
 
-    print(f"  Optimal L2 Alpha: {best_alpha:.8f}")
-    print(f"  Validation TE: {tracking_errors[best_idx]*100:.2f}% | Active Assets: {asset_counts[best_idx]}")
+    if verbose:
+        print(f"  Optimal L2 Alpha: {best_alpha:.8f}")
+        print(
+            f"  Validation TE: {tracking_errors[best_idx]*100:.2f}%"
+            f" | Active Assets: {asset_counts[best_idx]}"
+        )
 
     weights_series = pd.Series(best_weights, index=X_train.columns)
 
@@ -114,5 +132,5 @@ def plot_lasso_sweep(alphas, tracking_errors, asset_counts, best_alpha):
 
     plt.title("Simplex Optimizer Parameter Matrix (Plot 4)", fontsize=12, fontweight='bold')
     fig.tight_layout()
-    plt.savefig("plots/04_lasso_sweep.png", dpi=150, bbox_inches='tight')
+    plt.savefig(PLOTS_DIR / "04_lasso_sweep.png", dpi=150, bbox_inches='tight')
     plt.close()

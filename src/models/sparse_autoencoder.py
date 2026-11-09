@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from src.config import RANDOM_SEED
 
 from torch.utils.data import (
     TensorDataset,
@@ -61,8 +62,12 @@ class RobustLinearSAE(nn.Module):
 # Training
 # =========================================================
 
-def train_sae(X_train, y_train, X_val, y_val, top_k=None):
-    print("Training Model C: Sparse Autoencoder...")
+def train_sae(X_train, y_train, X_val, y_val, top_k=None, verbose=True):
+    if top_k is not None and not 1 <= top_k <= X_train.shape[1]:
+        raise ValueError("top_k must be between 1 and the number of candidate assets.")
+    if verbose:
+        print("Training Model C: Sparse Autoencoder...")
+    torch.manual_seed(RANDOM_SEED)
 
     X_train_t = torch.tensor(X_train.values, dtype=torch.float32)
     y_train_t = torch.tensor(y_train.values, dtype=torch.float32).unsqueeze(1)
@@ -139,7 +144,8 @@ def train_sae(X_train, y_train, X_val, y_val, top_k=None):
                 no_improve += 1
 
         if no_improve >= patience:
-            print(f"  Early stopping at epoch {epoch}")
+            if verbose:
+                print(f"  Early stopping at epoch {epoch}")
             break
 
     # Safety fallback
@@ -152,7 +158,8 @@ def train_sae(X_train, y_train, X_val, y_val, top_k=None):
     # Top-K Constraint (Apples-to-Apples Handshake)
     # =====================================================
     if top_k is not None and top_k < len(weights):
-        print(f"  Applying Top-{top_k} truncation...")
+        if verbose:
+            print(f"  Applying Top-{top_k} truncation...")
         
         keep_assets = weights.nlargest(top_k).index
         weights.loc[~weights.index.isin(keep_assets)] = 0.0

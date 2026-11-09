@@ -1,0 +1,51 @@
+ticker,asset_type,listing_region
+BABA,ADR,China
+JD,ADR,China
+BIDU,ADR,China
+TME,ADR,China
+NTES,ADR,China
+PDD,ADR,China
+TSM,ADR,Taiwan
+UMC,ADR,Taiwan
+INFY,ADR,India
+WIT,ADR,India
+HDB,ADR,India
+IBN,ADR,India
+RDY,ADR,India
+MMYT,ADR,India
+MELI,Common stock,Latin America
+VALE,ADR,Brazil
+PBR,ADR,Brazil
+BBD,ADR,Brazil
+GLOB,Common stock,Latin America
+STNE,Common stock,Latin America
+ASML,ADR,Europe
+NVO,ADR,Europe
+SAP,ADR,Europe
+SHEL,ADR,Europe
+BCS,ADR,Europe
+TM,ADR,Japan
+SONY,ADR,Japan
+HMC,ADR,South Korea
+SKM,ADR,South Korea
+KB,ADR,South Korea
+SE,ADR,Southeast Asia
+GRAB,ADR,Southeast Asia
+CPNG,ADR,South Korea
+BILI,ADR,China
+YMM,ADR,China
+NIO,ADR,China
+XPEV,ADR,China
+LI,ADR,China
+COIN,Common stock,United States
+PLTR,Common stock,United States
+SNOW,Common stock,United States
+UBER,Common stock,United States
+ABNB,Common stock,United States
+DASH,Common stock,United States
+RIVN,Common stock,United States
+SOFI,Common stock,United States
+HOOD,Common stock,United States
+DKNG,Common stock,United States
+RBLX,Common stock,United States
+SHOP,Common stock,Canada

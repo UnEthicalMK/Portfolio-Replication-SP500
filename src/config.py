@@ -1,0 +1,22 @@
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = PROJECT_ROOT / "data"
+LOG_DIR = PROJECT_ROOT / "logs"
+PLOTS_DIR = PROJECT_ROOT / "plots"
+MODELS_DIR = PROJECT_ROOT / "models"
+UNIVERSE_FILE = PROJECT_ROOT / "configs" / "universe.csv"
+
+TARGET = "^SP500TR"
+START_DATE = "2010-01-01"
+END_DATE = "2023-12-31"
+TRAIN_END = "2021-12-31"
+VAL_START = "2022-01-01"
+VAL_END = "2022-12-31"
+TEST_START = "2023-01-01"
+MIN_TRAIN_COVERAGE = 0.95
+MAX_FORWARD_FILL_DAYS = 3
+K_GRID = (5, 10, 15, 20)
+REBALANCE_FREQUENCIES = ("buy_hold", "monthly", "quarterly")
+WALK_FORWARD_VALIDATION_DAYS = 63
+RANDOM_SEED = 42

@@ -8,7 +8,8 @@ def train_equal_weight(X_train: pd.DataFrame, y_train: pd.Series,
     Strictly uses training data to rank assets by correlation to the target,
     then allocates capital equally among the top_k assets.
     """
-    print(f"Training Model A: Equal-Weight Baseline (Constrained to top {top_k} assets)...")
+    if not 1 <= top_k <= X_train.shape[1]:
+        raise ValueError("top_k must be between 1 and the number of candidate assets.")
     
     # Calculate training correlations to rank assets (Prevents validation look-ahead bias)
     correlations = X_train.corrwith(y_train).sort_values(ascending=False)

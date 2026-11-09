@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 from src.models.equal_weight import train_equal_weight
 from src.models.lasso_model import (
@@ -9,6 +10,7 @@ from src.models.lasso_model import (
     plot_lasso_sweep
 )
 from src.models.sparse_autoencoder import train_sae
+from src.config import DATA_DIR, K_GRID, MODELS_DIR, PLOTS_DIR
 
 plt.style.use('seaborn-v0_8-whitegrid')
 
@@ -33,20 +35,24 @@ def load_preprocessed_data():
     # ----------------------------------------
     # Scaled datasets (For Neural Network)
     # ----------------------------------------
-    X_train_scaled = pd.read_csv("data/X_train_scaled.csv", index_col=0, parse_dates=True)
-    X_val_scaled = pd.read_csv("data/X_val_scaled.csv", index_col=0, parse_dates=True)
+    X_train_scaled = pd.read_csv(DATA_DIR / "X_train_scaled.csv", index_col=0, parse_dates=True)
+    X_val_scaled = pd.read_csv(DATA_DIR / "X_val_scaled.csv", index_col=0, parse_dates=True)
 
     # ----------------------------------------
     # Unscaled datasets (For Physical Allocation)
     # ----------------------------------------
-    X_train_unscaled = pd.read_csv("data/X_train_unscaled.csv", index_col=0, parse_dates=True)
-    X_val_unscaled = pd.read_csv("data/X_val_unscaled.csv", index_col=0, parse_dates=True)
+    X_train_unscaled = pd.read_csv(DATA_DIR / "X_train_unscaled.csv", index_col=0, parse_dates=True)
+    X_val_unscaled = pd.read_csv(DATA_DIR / "X_val_unscaled.csv", index_col=0, parse_dates=True)
 
     # ----------------------------------------
     # Targets
     # ----------------------------------------
-    y_train = pd.read_csv("data/y_train.csv", index_col=0).squeeze()
-    y_val = pd.read_csv("data/y_val.csv", index_col=0).squeeze()
+    y_train = pd.read_csv(
+        DATA_DIR / "y_train.csv", index_col=0, parse_dates=True
+    ).squeeze()
+    y_val = pd.read_csv(
+        DATA_DIR / "y_val.csv", index_col=0, parse_dates=True
+    ).squeeze()
 
     print(f"  Train rows : {len(X_train_scaled)}")
     print(f"  Val rows   : {len(X_val_scaled)}")
@@ -65,30 +71,122 @@ def load_preprocessed_data():
 # Visualization
 # =========================================================
 
-def plot_instrument_weights(weights_df: pd.DataFrame):
-    print("Generating Plot 5: Instrument Weight Allocations...")
+def plot_instrument_weights(weights_df: pd.DataFrame, common_k: int):
+    print("Generating Plot 5: Model portfolio weights...")
 
-    fig, ax = plt.subplots(figsize=(14, 6))
-
-    # FIX: Restored the exact color mapping to match the line charts
-    weights_df.plot(
-        kind='bar',
+    display = weights_df.loc[(weights_df > 0).any(axis=1)].copy()
+    display = display.loc[display.max(axis=1).sort_values(ascending=False).index]
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(
+        display,
+        mask=display.eq(0),
+        annot=True,
+        fmt=".1%",
+        cmap="YlGnBu",
+        linewidths=0.5,
+        cbar_kws={"label": "Portfolio weight"},
         ax=ax,
-        width=0.8,
-        color=['steelblue', 'darkorange', 'seagreen']
     )
-
-    ax.set_title("Frozen Portfolio Allocation Vectors (Plot 5)", fontsize=14, fontweight='bold')
-    ax.set_ylabel("Portfolio Weight")
-    ax.set_xlabel("Assets")
-    ax.grid(axis='y', alpha=0.3)
-    ax.legend(title='Replication Models')
-
-    plt.xticks(rotation=45, ha='right')
+    ax.set_title(f"Frozen Portfolio Weights at Common K={common_k}")
+    ax.set_xlabel("Model")
+    ax.set_ylabel("Ticker")
     plt.tight_layout()
 
-    plt.savefig("plots/05_instrument_weights.png", dpi=150, bbox_inches='tight')
+    plt.savefig(PLOTS_DIR / "05_instrument_weights.png", dpi=150, bbox_inches='tight')
     plt.close()
+
+
+def plot_k_selection(results: pd.DataFrame) -> None:
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(results["K"], results["Lasso"], marker="o", label="Simplex")
+    ax.plot(results["K"], results["Equal_Weight"], marker="o", label="Equal weight")
+    ax.plot(results["K"], results["SAE"], marker="o", label="SAE")
+    ax.plot(results["K"], results["Mean_TE"], marker="D", linewidth=2.5, color="black",
+            label="Mean across models")
+    for model, color in {
+        "Lasso": "darkorange",
+        "Equal_Weight": "steelblue",
+        "SAE": "seagreen",
+    }.items():
+        minimum = results.loc[results[model].idxmin()]
+        ax.scatter(minimum["K"], minimum[model], color=color, s=70, zorder=5)
+        ax.annotate(
+            f"{model} min K={int(minimum['K'])}",
+            (minimum["K"], minimum[model]),
+            xytext=(5, 8),
+            textcoords="offset points",
+            fontsize=8,
+        )
+    selected = results.loc[results["Mean_TE"].idxmin()]
+    ax.axvline(
+        selected["K"], color="crimson", linestyle="--",
+        label=f"Common K by mean TE={int(selected['K'])}",
+    )
+    ax.set_title("Validation Tracking Error Across Candidate K Values")
+    ax.set_xlabel("Number of holdings (K)")
+    ax.set_ylabel("Validation tracking error")
+    ax.yaxis.set_major_formatter(lambda value, _: f"{value:.0%}")
+    ax.grid(alpha=0.25)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(PLOTS_DIR / "04_k_selection.png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def _validation_tracking_error(weights, X_val, y_val):
+    return float((X_val @ weights - y_val).std() * np.sqrt(252))
+
+
+def select_common_k(
+    X_train_scaled,
+    X_val_scaled,
+    X_train_unscaled,
+    X_val_unscaled,
+    y_train,
+    y_val,
+):
+    rows = []
+    candidates = {}
+    for k in K_GRID:
+        if k > X_train_unscaled.shape[1]:
+            continue
+        lasso = train_lasso(
+            X_train_unscaled, y_train, X_val_unscaled, y_val,
+            min_assets=k, max_assets=k, verbose=False,
+        )[0]
+        equal = train_equal_weight(
+            X_train_unscaled, y_train, X_val_unscaled, y_val, top_k=k
+        )
+        sae = train_sae(
+            X_train_scaled, y_train, X_val_scaled, y_val, top_k=k, verbose=False
+        )
+        errors = {
+            "Lasso": _validation_tracking_error(lasso, X_val_unscaled, y_val),
+            "Equal_Weight": _validation_tracking_error(equal, X_val_unscaled, y_val),
+            "SAE": _validation_tracking_error(sae, X_val_unscaled, y_val),
+        }
+        if not np.isfinite(list(errors.values())).all():
+            raise ValueError(f"Non-finite validation score encountered for K={k}.")
+        rows.append({
+            "K": k,
+            **errors,
+            "Mean_TE": np.mean(list(errors.values())),
+            "Worst_TE": max(errors.values()),
+        })
+        candidates[k] = (lasso, equal, sae)
+
+    if not rows:
+        raise RuntimeError("No K values are feasible for the candidate universe.")
+    selected = min(rows, key=lambda row: (row["Mean_TE"], row["Worst_TE"], row["K"]))
+    pd.DataFrame(rows).to_csv(DATA_DIR / "k_selection_validation.csv", index=False)
+    print("  Common-K validation sweep:")
+    for row in rows:
+        print(
+            f"    K={row['K']:>2}: mean TE={row['Mean_TE']:.2%}, "
+            f"worst TE={row['Worst_TE']:.2%}"
+        )
+    print(f"  Selected common K={selected['K']} using mean validation tracking error")
+    return int(selected["K"]), candidates[selected["K"]]
 
 
 # =========================================================
@@ -108,54 +206,23 @@ def run_models_pipeline():
         y_val
     ) = load_preprocessed_data()
 
-    # =====================================================
-    # MODEL B: Elastic Net (The Sparsity Anchor)
-    # Uses UNSCALED returns to solve physical weights
-    # =====================================================
-    (
-        lasso_weights,
-        alphas,
-        tracking_errors,
-        asset_counts,
-        best_alpha
-    ) = train_lasso(
-        X_train_unscaled,
-        y_train,
-        X_val_unscaled,
-        y_val
-    )
-
-    plot_lasso_sweep(alphas, tracking_errors, asset_counts, best_alpha)
-
-    # Determine the mathematically optimal K
-    active_assets_count = (lasso_weights > 0).sum()
-    print(f"\n[!] APPLES-TO-APPLES CONSTRAINT: Lasso determined {active_assets_count} assets is optimal.")
-    print(f"[!] Forcing Equal-Weight and SAE to allocate across exactly {active_assets_count} assets.\n")
-
-    # =====================================================
-    # MODEL A: Equal Weight (The Baseline)
-    # Uses UNSCALED returns
-    # =====================================================
-    # FIX: Updated signature to match the refactored equal_weight.py
-    eq_weights = train_equal_weight(
-        X_train_unscaled,
-        y_train,
-        X_val_unscaled,
-        y_val,
-        top_k=active_assets_count
-    )
-
-    # =====================================================
-    # MODEL C: Sparse Autoencoder (The Deep Network)
-    # Uses SCALED features to prevent variance-driven learning
-    # =====================================================
-    sae_weights = train_sae(
+    common_k, (lasso_weights, eq_weights, sae_weights) = select_common_k(
         X_train_scaled,
-        y_train,
         X_val_scaled,
+        X_train_unscaled,
+        X_val_unscaled,
+        y_train,
         y_val,
-        top_k=active_assets_count
     )
+
+    _, alphas, tracking_errors, asset_counts, best_alpha = train_lasso(
+        X_train_unscaled, y_train, X_val_unscaled, y_val,
+        min_assets=common_k, max_assets=common_k,
+    )
+
+    k_results = pd.read_csv(DATA_DIR / "k_selection_validation.csv")
+    plot_k_selection(k_results)
+    print(f"  Portfolio cardinality fixed at {common_k} assets for all models")
 
     # =====================================================
     # Freeze Weights
@@ -169,8 +236,8 @@ def run_models_pipeline():
 
     # Drop assets that all models ignored
     frozen_weights = frozen_weights.loc[(frozen_weights != 0).any(axis=1)]
-    frozen_weights.to_csv("models/frozen_weights_2022.csv")
+    frozen_weights.to_csv(MODELS_DIR / "frozen_weights_2022.csv")
 
-    plot_instrument_weights(frozen_weights)
+    plot_instrument_weights(frozen_weights, common_k)
 
     print("Milestone 3 Complete. Portfolios frozen and ready for Backtesting.\n")

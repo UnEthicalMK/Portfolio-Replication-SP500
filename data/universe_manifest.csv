@@ -1,0 +1,51 @@
+ticker,asset_type,listing_region,observations,train_coverage,eligible,reason
+BABA,ADR,China,2336,0.607415,False,insufficient pre-validation history
+JD,ADR,China,2419,0.634889,False,insufficient pre-validation history
+BIDU,ADR,China,3522,1.0,True,coverage threshold
+TME,ADR,China,1271,0.254882,False,insufficient pre-validation history
+NTES,ADR,China,3522,1.0,True,coverage threshold
+PDD,ADR,China,1367,0.28666,False,insufficient pre-validation history
+TSM,ADR,Taiwan,3522,1.0,True,coverage threshold
+UMC,ADR,Taiwan,3522,1.0,True,coverage threshold
+INFY,ADR,India,3522,1.0,True,coverage threshold
+WIT,ADR,India,3522,1.0,True,coverage threshold
+HDB,ADR,India,3522,1.0,True,coverage threshold
+IBN,ADR,India,3522,1.0,True,coverage threshold
+RDY,ADR,India,3522,1.0,True,coverage threshold
+MMYT,ADR,India,3369,0.949355,False,insufficient pre-validation history
+MELI,Common stock,Latin America,3522,1.0,True,coverage threshold
+VALE,ADR,Brazil,3522,1.0,True,coverage threshold
+PBR,ADR,Brazil,3522,1.0,True,coverage threshold
+BBD,ADR,Brazil,3522,1.0,True,coverage threshold
+GLOB,Common stock,Latin America,2380,0.621979,False,insufficient pre-validation history
+STNE,Common stock,Latin America,1303,0.265475,False,insufficient pre-validation history
+ASML,ADR,Europe,3522,1.0,True,coverage threshold
+NVO,ADR,Europe,3522,1.0,True,coverage threshold
+SAP,ADR,Europe,3522,1.0,True,coverage threshold
+SHEL,ADR,Europe,3522,1.0,True,coverage threshold
+BCS,ADR,Europe,3522,1.0,True,coverage threshold
+TM,ADR,Japan,3522,1.0,True,coverage threshold
+SONY,ADR,Japan,3522,1.0,True,coverage threshold
+HMC,ADR,South Korea,3522,1.0,True,coverage threshold
+SKM,ADR,South Korea,3522,1.0,True,coverage threshold
+KB,ADR,South Korea,3522,1.0,True,coverage threshold
+SE,ADR,Southeast Asia,1558,0.349884,False,insufficient pre-validation history
+GRAB,ADR,Southeast Asia,775,0.090698,False,insufficient pre-validation history
+CPNG,ADR,South Korea,707,0.068189,False,insufficient pre-validation history
+BILI,ADR,China,1450,0.314134,False,insufficient pre-validation history
+YMM,ADR,China,635,0.044356,False,insufficient pre-validation history
+NIO,ADR,China,1334,0.275737,False,insufficient pre-validation history
+XPEV,ADR,China,841,0.112546,False,insufficient pre-validation history
+LI,ADR,China,861,0.119166,False,insufficient pre-validation history
+COIN,Common stock,United States,684,0.060576,False,insufficient pre-validation history
+PLTR,Common stock,United States,818,0.104932,False,insufficient pre-validation history
+SNOW,Common stock,United States,828,0.108242,False,insufficient pre-validation history
+UBER,Common stock,United States,1169,0.221119,False,insufficient pre-validation history
+ABNB,Common stock,United States,768,0.088381,False,insufficient pre-validation history
+DASH,Common stock,United States,769,0.088712,False,insufficient pre-validation history
+RIVN,Common stock,United States,537,0.011917,False,insufficient pre-validation history
+SOFI,Common stock,United States,753,0.083416,False,insufficient pre-validation history
+HOOD,Common stock,United States,610,0.036081,False,insufficient pre-validation history
+DKNG,Common stock,United States,1117,0.203906,False,insufficient pre-validation history
+RBLX,Common stock,United States,708,0.06852,False,insufficient pre-validation history
+SHOP,Common stock,Canada,2169,0.552135,False,insufficient pre-validation history
