@@ -1,0 +1,19 @@
+Sensitivity,Parameter,Model,Validation Tracking Error,Cumulative Turnover
+K,5,Lasso,0.1420183226826584,
+K,5,Equal_Weight,0.174971506515885,
+K,5,SAE,0.1487916402252245,
+K,10,Lasso,0.119155513088575,
+K,10,Equal_Weight,0.1447856979561011,
+K,10,SAE,0.1359662221383292,
+K,15,Lasso,0.1092448940904929,
+K,15,Equal_Weight,0.1282694935729535,
+K,15,SAE,0.1272354785197681,
+K,20,Lasso,0.1122885338701706,
+K,20,Equal_Weight,0.1290941368652248,
+K,20,SAE,0.1286943497298658,
+Execution policy,walk_forward_monthly,Equal_Weight,,1.5730751258004347
+Execution policy,walk_forward_monthly,Lasso,,1.5718205783532824
+Execution policy,walk_forward_monthly,SAE,,4.318200454829984
+Execution policy,walk_forward_quarterly,Equal_Weight,,1.2702058986553793
+Execution policy,walk_forward_quarterly,Lasso,,1.2425080811471017
+Execution policy,walk_forward_quarterly,SAE,,1.745139807941616

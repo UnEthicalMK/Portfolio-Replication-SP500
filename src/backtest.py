@@ -96,7 +96,8 @@ def _rebalance_dates(index: pd.DatetimeIndex, frequency: str) -> set:
 
 
 def simulate_rebalanced(
-    prices: pd.DataFrame, weights_df: pd.DataFrame, frequency: str
+    prices: pd.DataFrame, weights_df: pd.DataFrame, frequency: str,
+    include_costs: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     _validate_weights(prices, weights_df)
     models = weights_df.columns
@@ -104,18 +105,23 @@ def simulate_rebalanced(
     portfolio_values = pd.DataFrame(
         index=prices.index, columns=models, dtype=float
     )
+    gross_values = portfolio_values.copy()
+    fees_paid = pd.DataFrame(0.0, index=prices.index, columns=models)
     turnovers = pd.DataFrame(0.0, index=prices.index, columns=models)
     rebalance_dates = _rebalance_dates(prices.index, frequency)
     
     for model in models:
         target_weights = weights_df[model].fillna(0.0)
         shares = pd.Series(0.0, index=proxy_prices.columns)
+        gross_shares = shares.copy()
         portfolio_value = INITIAL_CAPITAL
         for date in prices.index:
             current_prices = proxy_prices.loc[date]
             marked_value = float((shares * current_prices).sum())
+            gross_marked_value = float((gross_shares * current_prices).sum())
             if date == prices.index[0]:
                 marked_value = INITIAL_CAPITAL
+                gross_marked_value = INITIAL_CAPITAL
             if date in rebalance_dates:
                 target_value = marked_value * target_weights
                 current_value = shares * current_prices
@@ -125,17 +131,26 @@ def simulate_rebalanced(
                     for ticker in target_value.index
                 )
                 portfolio_value = max(marked_value - fees, 0.0)
+                fees_paid.loc[date, model] = fees
+                gross_shares = (marked_value * target_weights) / current_prices
                 target_value = portfolio_value * target_weights
                 shares = target_value / current_prices
                 turnovers.loc[date, model] = traded_value.sum() / max(marked_value, 1.0)
             else:
                 portfolio_value = marked_value
             portfolio_values.loc[date, model] = portfolio_value
+            gross_values.loc[date, model] = gross_marked_value
     portfolio_returns = np.log(portfolio_values).diff().dropna()
     benchmark_val = prices[TARGET]
     benchmark_val_rebased = benchmark_val / benchmark_val.iloc[0] * INITIAL_CAPITAL
     benchmark_returns = np.log(benchmark_val).diff().dropna()
-    return portfolio_values, portfolio_returns, benchmark_val_rebased, benchmark_returns, turnovers
+    result = (
+        portfolio_values, portfolio_returns, benchmark_val_rebased,
+        benchmark_returns, turnovers,
+    )
+    if include_costs:
+        return result + (fees_paid, np.log(gross_values).diff().dropna())
+    return result
 
 
 def simulate_buy_and_hold(prices: pd.DataFrame, weights_df: pd.DataFrame) -> tuple:
@@ -147,6 +162,7 @@ def simulate_walk_forward(
     prices: pd.DataFrame,
     weights_by_date: dict[str, pd.DataFrame],
     frequency: str = "monthly",
+    include_costs: bool = False,
 ) -> tuple:
     """Simulate portfolios whose target weights are refreshed at each rebalance."""
     if frequency not in {"monthly", "quarterly"}:
@@ -155,16 +171,21 @@ def simulate_walk_forward(
     proxy_prices = prices.drop(columns=[TARGET])
     target_dates = set(next(iter(weights_by_date.values())).index)
     values = pd.DataFrame(index=prices.index, columns=models, dtype=float)
+    gross_values = values.copy()
+    fees_paid = pd.DataFrame(0.0, index=prices.index, columns=models)
     turnovers = pd.DataFrame(0.0, index=prices.index, columns=models)
 
     for model in models:
         weights = weights_by_date[model].reindex(columns=proxy_prices.columns).fillna(0.0)
         shares = pd.Series(0.0, index=proxy_prices.columns)
+        gross_shares = shares.copy()
         for date in prices.index:
             current_prices = proxy_prices.loc[date]
             marked_value = float((shares * current_prices).sum())
+            gross_marked_value = float((gross_shares * current_prices).sum())
             if date == prices.index[0]:
                 marked_value = INITIAL_CAPITAL
+                gross_marked_value = INITIAL_CAPITAL
             if date in target_dates:
                 target_weights = weights.loc[date]
                 current_value = shares * current_prices
@@ -175,17 +196,48 @@ def simulate_walk_forward(
                     for ticker in target_value.index
                 )
                 net_value = max(marked_value - fees, 0.0)
+                fees_paid.loc[date, model] = fees
+                gross_shares = (marked_value * target_weights) / current_prices
                 shares = (net_value * target_weights) / current_prices
                 turnovers.loc[date, model] = (
                     traded_value.sum() / max(marked_value, 1.0)
                 )
                 marked_value = net_value
             values.loc[date, model] = marked_value
+            gross_values.loc[date, model] = gross_marked_value
 
     returns = np.log(values).diff().dropna()
     benchmark_value = prices[TARGET] / prices[TARGET].iloc[0] * INITIAL_CAPITAL
     benchmark_returns = np.log(prices[TARGET]).diff().dropna()
-    return values, returns, benchmark_value, benchmark_returns, turnovers
+    result = values, returns, benchmark_value, benchmark_returns, turnovers
+    if include_costs:
+        return result + (fees_paid, np.log(gross_values).diff().dropna())
+    return result
+
+
+def _record_cost_attribution(
+    rows: list[dict],
+    strategy: str,
+    net_returns: pd.DataFrame,
+    gross_returns: pd.DataFrame,
+    fees: pd.DataFrame,
+) -> None:
+    for model in net_returns:
+        total_fees = float(fees[model].sum())
+        rows.append(
+            {
+                "Strategy": strategy,
+                "Model": model,
+                "Gross Return": np.expm1(gross_returns[model].sum()),
+                "Net Return": (
+                    (1.0 - fees[model].iloc[0] / INITIAL_CAPITAL)
+                    * np.exp(net_returns[model].sum())
+                    - 1.0
+                ),
+                "Transaction Costs": total_fees,
+                "Transaction Cost (bps)": total_fees / INITIAL_CAPITAL * 10000,
+            }
+        )
 
 def plot_cumulative_returns(port_values: pd.DataFrame, bench_val: pd.Series):
     print("Generating Plot 6: Out-of-sample performance...")
@@ -259,8 +311,12 @@ def run_backtest():
     ensure_directories()
     prices, weights = load_backtest_data()
     all_returns = {}
-    port_vals, port_rets, bench_val, bench_rets = simulate_buy_and_hold(prices, weights)
+    cost_rows = []
+    (
+        port_vals, port_rets, bench_val, bench_rets, _, buyhold_fees, buyhold_gross
+    ) = simulate_rebalanced(prices, weights, "buy_hold", include_costs=True)
     all_returns.update({f"{model}__buy_hold": port_rets[model] for model in port_rets})
+    _record_cost_attribution(cost_rows, "buy_hold", port_rets, buyhold_gross, buyhold_fees)
     total_turnover = {}
 
     monthly_dates = sorted(_rebalance_dates(prices.index, "monthly"))
@@ -281,16 +337,29 @@ def run_backtest():
         validation_days=WALK_FORWARD_VALIDATION_DAYS,
     )
     weight_frames = []
-    monthly_values, monthly_returns, _, _, monthly_turnover = simulate_walk_forward(
-        prices, monthly_weights, "monthly"
+    (
+        monthly_values, monthly_returns, _, _, monthly_turnover,
+        monthly_fees, monthly_gross,
+    ) = simulate_walk_forward(
+        prices, monthly_weights, "monthly", include_costs=True
     )
     print(f"  Running quarterly walk-forward retraining with K={common_k}...")
     quarterly_weights = fit_walk_forward_weights(
         raw_returns, quarterly_dates, common_k,
         validation_days=WALK_FORWARD_VALIDATION_DAYS,
     )
-    quarterly_values, quarterly_returns, _, _, quarterly_turnover = simulate_walk_forward(
-        prices, quarterly_weights, "quarterly"
+    (
+        quarterly_values, quarterly_returns, _, _, quarterly_turnover,
+        quarterly_fees, quarterly_gross,
+    ) = simulate_walk_forward(
+        prices, quarterly_weights, "quarterly", include_costs=True
+    )
+    _record_cost_attribution(
+        cost_rows, "walk_forward_monthly", monthly_returns, monthly_gross, monthly_fees
+    )
+    _record_cost_attribution(
+        cost_rows, "walk_forward_quarterly",
+        quarterly_returns, quarterly_gross, quarterly_fees,
     )
     for frequency, frames in (
         ("monthly", monthly_weights),
@@ -338,5 +407,6 @@ def run_backtest():
     combined_returns['S&P 500 (Target)'] = bench_rets
     combined_returns.to_csv(DATA_DIR / 'oos_portfolio_returns.csv')
     pd.DataFrame(total_turnover).to_csv(DATA_DIR / "oos_turnover.csv")
+    pd.DataFrame(cost_rows).to_csv(DATA_DIR / "oos_cost_attribution.csv", index=False)
     
     print("Milestone 4 Complete. Backtest PnL and Returns saved.\n")

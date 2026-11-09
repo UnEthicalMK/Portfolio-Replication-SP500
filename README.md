@@ -105,6 +105,37 @@ The date-specific allocations are also saved in
 `data/walk_forward_weights.csv`, allowing holdings overlap and weight-distance
 diagnostics to be computed directly.
 
+## Highest-value robustness diagnostics
+
+Run the additional research diagnostics with:
+
+```powershell
+python main.py --research-analysis
+```
+
+The GitHub-readable combined report is
+[`data/research_analysis.md`](data/research_analysis.md). The individual CSV
+files listed below remain available for programmatic analysis.
+
+The stage produces:
+
+- `data/rolling_market_diagnostics.csv` and
+  `plots/13_rolling_market_exposure.png`: rolling correlation, beta, and
+  tracking error against the benchmark.
+- `data/factor_exposures.csv`: regression exposures to the benchmark and
+  transparent candidate-universe momentum and low-volatility proxy factors.
+  These are descriptive proxies, not claims of point-in-time academic factor
+  purity.
+- `data/regime_metrics.csv`: performance in high/low-volatility and up/down
+  market regimes.
+- `data/sensitivity_summary.csv`: validation sensitivity across the K grid and
+  cumulative turnover by execution policy.
+- `data/oos_cost_attribution.csv`: gross return, net return, and explicit
+  transaction-cost drag for each strategy and model.
+
+Transaction costs are included in the net portfolio values and are now
+separately attributed against gross portfolio returns.
+
 Plot 8 includes dashed normal-density fits as a diagnostic reference. They are
 not an assumption that residuals are Gaussian; deviations from the overlays
 are part of the tail-risk analysis.

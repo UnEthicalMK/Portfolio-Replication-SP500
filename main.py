@@ -10,6 +10,7 @@ from src.features import run_feature_engineering
 from src.models_pipeline import run_models_pipeline
 from src.backtest import run_backtest
 from src.diagnostics import run_diagnostics
+from src.research_analysis import run_research_analysis
 from src.config import LOG_DIR
 
 parser = argparse.ArgumentParser(description="Run the S&P 500 replication research pipeline.")
@@ -21,6 +22,7 @@ parser.add_argument('--features', action='store_true', help='Milestone 2: Genera
 parser.add_argument('--models', action='store_true', help='Milestone 3: Train simplex optimizer, SAE, and extract weights')
 parser.add_argument('--backtest', action='store_true', help='Milestone 4: Execute 2023 out-of-sample simulation')
 parser.add_argument('--diagnostics', action='store_true', help='Milestone 5: Generate performance tear sheets')
+parser.add_argument('--research-analysis', action='store_true', help='Milestone 6: Generate robustness and exposure diagnostics')
 
 args = parser.parse_args()
 
@@ -33,6 +35,7 @@ stages = [
     (args.all or args.models, "Models", run_models_pipeline),
     (args.all or args.backtest, "Backtest", run_backtest),
     (args.all or args.diagnostics, "Diagnostics", run_diagnostics),
+    (args.all or args.research_analysis, "Research analysis", run_research_analysis),
 ]
 
 print("\nS&P 500 replication research pipeline")
