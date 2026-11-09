@@ -76,14 +76,14 @@ Data: [`regime_metrics.csv`](regime_metrics.csv)
 | Strategy | Model | Gross Return | Net Return | Transaction Costs | Transaction Cost (bps) |
 | --- | --- | --- | --- | --- | --- |
 | buy_hold | Equal_Weight | 28.59% | 28.43% | 1266.6667 | 12.6667 |
-| buy_hold | Lasso | 33.79% | 33.63% | 1186.2081 | 11.8621 |
+| buy_hold | Lasso | 33.79% | 33.63% | 1186.2080 | 11.8621 |
 | buy_hold | SAE | 32.24% | 32.08% | 1266.6559 | 12.6666 |
-| walk_forward_monthly | Equal_Weight | 27.43% | 27.43% | 2092.1726 | 20.9217 |
-| walk_forward_monthly | Lasso | 35.40% | 35.39% | 2002.5264 | 20.0253 |
-| walk_forward_monthly | SAE | 35.13% | 35.07% | 6761.4184 | 67.6142 |
-| walk_forward_quarterly | Equal_Weight | 27.17% | 27.15% | 1661.8950 | 16.6190 |
-| walk_forward_quarterly | Lasso | 34.81% | 34.80% | 1547.7515 | 15.4775 |
-| walk_forward_quarterly | SAE | 32.24% | 32.20% | 2472.4305 | 24.7243 |
+| walk_forward_monthly | Equal_Weight | 27.43% | 27.43% | 2092.1728 | 20.9217 |
+| walk_forward_monthly | Lasso | 35.40% | 35.39% | 2002.5268 | 20.0253 |
+| walk_forward_monthly | SAE | 35.13% | 35.07% | 6761.4185 | 67.6142 |
+| walk_forward_quarterly | Equal_Weight | 27.17% | 27.15% | 1661.8951 | 16.6190 |
+| walk_forward_quarterly | Lasso | 34.81% | 34.80% | 1547.7517 | 15.4775 |
+| walk_forward_quarterly | SAE | 32.24% | 32.20% | 2472.4306 | 24.7243 |
 
 Data: [`oos_cost_attribution.csv`](oos_cost_attribution.csv)
 
