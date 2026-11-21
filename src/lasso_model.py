@@ -1,325 +1,132 @@
 """
-lasso_model.py
---------------
-Builds the Lasso sparse portfolio model.
-
-Pipeline:
-    1. Naive equal-weight benchmark (sanity-check floor)
-    2. Sweep the regularization path across 50 alpha values
-    3. Select the sparsest alpha whose validation TE stays under 1%
-    4. Extract and normalize the selected portfolio weights
-    5. Plot the regularization path
+src/lasso_model.py
+------------------
+L1-regularized sparse cross-market tracking optimizer.
+Fits Lasso paths on scaled features and computes tracking error
+in raw, unscaled return space to ensure mathematical validity.
 """
 
 import os
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.linear_model import Lasso
 
-
-# ============================================================
-# SHARED METRIC
-# ============================================================
-
-def tracking_error(portfolio_ret, index_ret):
+def calculate_tracking_error(y_true, y_pred):
     """
-    Annualized tracking error between portfolio and index.
-
-    TE = std(daily differences) x sqrt(252)
-
-    Parameters
-    ----------
-    portfolio_ret : array-like
-        Daily portfolio returns.
-    index_ret : array-like
-        Daily index returns.
-
-    Returns
-    -------
-    float
-        Annualized tracking error.
+    Computes annualized tracking error in percentage points:
+    TE = std(y_true - y_pred, ddof=1) * sqrt(252) * 100
     """
-    diff = np.asarray(portfolio_ret) - np.asarray(index_ret)
-    return diff.std() * np.sqrt(252)
+    diff = np.asarray(y_true) - np.asarray(y_pred)
+    return np.std(diff, ddof=1) * np.sqrt(252) * 100.0
 
-
-# ============================================================
-# STEP 1: NAIVE BENCHMARK
-# ============================================================
-
-def naive_benchmark(train_returns, test_returns, n_stocks=40):
+def sweep_alpha(X_train_scaled, y_train, X_val_raw, y_val_raw, scaler, alphas=None):
     """
-    Equal-weight portfolio of top N stocks by average training return.
-
-    Serves as a sanity-check floor. Any model that cannot beat this
-    simple baseline is not functioning correctly.
-
-    Parameters
-    ----------
-    train_returns : pd.DataFrame
-        Training period log returns including SP500 column.
-    test_returns : pd.DataFrame
-        Test period log returns including SP500 column.
-    n_stocks : int
-        Number of stocks to include (default 40).
-
-    Returns
-    -------
-    tuple
-        (annualized tracking error : float,
-         selected ticker list     : list of str)
+    Sweeps Lasso penalty across a wide spectrum (100 log-spaced points).
+    Strict Mathematical Discipline:
+    - Trains on X_train_scaled without intercept (fit_intercept=False).
+    - Unscales coefficients: beta_raw = beta_scaled / feature_std.
+    - Evaluates tracking error on UNTRANSFORMED X_val_raw and y_val_raw.
     """
-    stock_cols = [c for c in train_returns.columns if c != "SP500"]
-
-    top_stocks = (
-        train_returns[stock_cols]
-        .mean()
-        .nlargest(n_stocks)
-        .index
-        .tolist()
-    )
-
-    weights = np.ones(len(top_stocks)) / len(top_stocks)
-
-    portfolio_ret = (
-        test_returns[top_stocks]
-        .mul(weights)
-        .sum(axis=1)
-    )
-
-    te = tracking_error(portfolio_ret, test_returns["SP500"])
-
-    print(f"Naive benchmark ({len(top_stocks)} stocks): TE = {te*100:.3f}%")
-    return te, top_stocks
-
-
-# ============================================================
-# STEP 2: REGULARIZATION PATH SWEEP
-# ============================================================
-
-def sweep_alpha(train_returns, val_returns, n_alphas=50):
-    """
-    Train Lasso across a log-spaced grid of alpha values.
-
-    For each alpha:
-        - Fit Lasso on training data (positive=True: long-only)
-        - Count non-zero weights (selected stocks)
-        - Measure validation tracking error
-
-    Objective: find the sparsest portfolio whose validation TE
-    stays under 1% annualized. The data decides the stock count.
-
-    Parameters
-    ----------
-    train_returns : pd.DataFrame
-        Training period log returns.
-    val_returns : pd.DataFrame
-        Validation period log returns (2022 only).
-    n_alphas : int
-        Number of alpha values to sweep.
-
-    Returns
-    -------
-    pd.DataFrame
-        Results table with columns: alpha, n_stocks, val_te, coef.
-    """
-    stock_cols = [c for c in train_returns.columns if c != "SP500"]
-
-    X_train = train_returns[stock_cols].values
-    y_train = train_returns["SP500"].values
-    X_val   = val_returns[stock_cols].values
-    y_val   = val_returns["SP500"].values
-
-    # Log-spaced: tight (many stocks) → loose (few stocks)
-    alphas = np.logspace(-5, -1, n_alphas)
+    if alphas is None:
+        alphas = np.logspace(-6, -1, 100)
+        
     results = []
-
+    feature_names = X_train_scaled.columns
+    
     for alpha in alphas:
+        # positive=True enforces long-only capital deployment
         model = Lasso(
             alpha=alpha,
-            positive=True,          # enforce long-only weights
+            positive=True,
             fit_intercept=False,
-            max_iter=10000
+            max_iter=15000,
+            random_state=42
         )
-        model.fit(X_train, y_train)
-
-        coef = model.coef_.copy()
-        n_selected = (coef > 1e-6).sum()
-
-        pred = X_val @ coef
-        te   = tracking_error(pred, y_val)
-
+        model.fit(X_train_scaled.values, y_train.values)
+        
+        # Unscale coefficients to physical price space
+        raw_coefs = model.coef_ / scaler.scale_
+        active_mask = raw_coefs > 1e-6
+        active_count = int(np.sum(active_mask))
+        
+        # Validation prediction in RAW space
+        val_preds_raw = X_val_raw.values @ raw_coefs
+        val_te_raw = calculate_tracking_error(y_val_raw.values, val_preds_raw)
+        
+        # Normalized portfolio validation tracking error (sum weights = 1.0)
+        if active_count > 0:
+            norm_weights = raw_coefs.copy()
+            norm_weights[active_mask] = norm_weights[active_mask] / np.sum(norm_weights[active_mask])
+            val_preds_norm = X_val_raw.values @ norm_weights
+            val_te_norm = calculate_tracking_error(y_val_raw.values, val_preds_norm)
+        else:
+            norm_weights = raw_coefs
+            val_te_norm = calculate_tracking_error(y_val_raw.values, np.zeros_like(y_val_raw.values))
+            
         results.append({
-            "alpha":    alpha,
-            "n_stocks": int(n_selected),
-            "val_te":   te,
-            "coef":     coef
+            'alpha': alpha,
+            'active_assets': active_count,
+            'val_te_raw': val_te_raw,
+            'val_te_norm': val_te_norm,
+            'raw_coefs': raw_coefs,
+            'norm_weights': norm_weights
         })
+        
+    results_df = pd.DataFrame(results)
+    print(f"[+] Lasso Alpha Sweep completed ({len(alphas)} points): Active assets range {results_df['active_assets'].min()} -> {results_df['active_assets'].max()}.")
+    return results_df
 
-        print(
-            f"  alpha={alpha:.5f}  "
-            f"stocks={n_selected:3d}  "
-            f"val_TE={te*100:.3f}%"
-        )
-
-    return pd.DataFrame(results)
-
-
-# ============================================================
-# STEP 3: ALPHA SELECTION
-# ============================================================
-
-def select_best_alpha(results_df, te_threshold=0.01):
+def extract_portfolio_at_k(results_df, target_k, feature_names):
     """
-    Select the sparsest alpha whose validation TE is under threshold.
-
-    If no alpha meets the threshold, fall back to the minimum TE model
-    and warn the user.
-
-    Parameters
-    ----------
-    results_df : pd.DataFrame
-        Output of sweep_alpha().
-    te_threshold : float
-        Maximum acceptable annualized tracking error (default 1%).
-
-    Returns
-    -------
-    pd.Series
-        Row from results_df corresponding to the selected alpha.
+    Extracts the portfolio from the alpha sweep whose active asset count
+    matches or is closest to target_k, minimizing validation tracking error.
     """
-    acceptable = results_df[results_df["val_te"] < te_threshold]
-
-    if acceptable.empty:
-        print(
-            "WARNING: No alpha met the 1% threshold. "
-            "Using minimum TE model instead."
-        )
-        best = results_df.loc[results_df["val_te"].idxmin()]
+    exact_matches = results_df[results_df['active_assets'] == target_k]
+    if not exact_matches.empty:
+        best_row = exact_matches.loc[exact_matches['val_te_norm'].idxmin()]
     else:
-        # Largest alpha among acceptable = sparsest acceptable model
-        best = acceptable.loc[acceptable["alpha"].idxmax()]
-
-    print(f"\nSelected alpha:  {best['alpha']:.6f}")
-    print(f"Portfolio size:  {int(best['n_stocks'])} stocks")
-    print(f"Validation TE:   {best['val_te']*100:.3f}%")
-
-    return best
-
-
-# ============================================================
-# STEP 4: PORTFOLIO EXTRACTION
-# ============================================================
-
-def extract_portfolio(best_result, train_returns):
-    """
-    Extract selected tickers and normalize their weights to sum to 1.
-
-    Saves the portfolio to data/processed/lasso_portfolio.csv.
-
-    Parameters
-    ----------
-    best_result : pd.Series
-        Row returned by select_best_alpha().
-    train_returns : pd.DataFrame
-        Training returns (used to recover column names).
-
-    Returns
-    -------
-    tuple
-        (selected_stocks : list of str,
-         normalized_weights : np.ndarray)
-    """
-    os.makedirs("data/processed", exist_ok=True)
-
-    stock_cols = [c for c in train_returns.columns if c != "SP500"]
-    coef = best_result["coef"]
-    mask = coef > 1e-6
-
-    selected_stocks  = [stock_cols[i] for i, keep in enumerate(mask) if keep]
-    selected_weights = coef[mask]
-
-    if len(selected_weights) == 0:
-        raise ValueError("Lasso selected zero stocks. Lower the alpha threshold.")
-
-    # Normalize to sum to 1
-    selected_weights = selected_weights / selected_weights.sum()
-
+        # Nearest cardinality
+        dist = (results_df['active_assets'] - target_k).abs()
+        min_dist = dist.min()
+        candidates = results_df[dist == min_dist]
+        best_row = candidates.loc[candidates['val_te_norm'].idxmin()]
+        
+    weights = best_row['norm_weights']
+    mask = weights > 1e-6
+    
     portfolio = pd.DataFrame({
-        "ticker": selected_stocks,
-        "weight": selected_weights
-    }).sort_values("weight", ascending=False)
+        'Ticker': feature_names[mask],
+        'Weight': weights[mask]
+    }).sort_values(by='Weight', ascending=False).reset_index(drop=True)
+    
+    # Re-normalize exactly to 1.0
+    portfolio['Weight'] = portfolio['Weight'] / portfolio['Weight'].sum()
+    return portfolio, best_row['alpha'], best_row['val_te_norm']
 
-    portfolio.to_csv("data/processed/lasso_portfolio.csv", index=False)
-
-    print(f"Portfolio saved: {len(selected_stocks)} stocks")
-    print(portfolio.head(10).to_string(index=False))
-
-    return selected_stocks, selected_weights
-
-
-# ============================================================
-# STEP 5: REGULARIZATION PATH PLOT
-# ============================================================
-
-def plot_regularization_path(results_df, best_alpha, te_threshold=0.01):
+def plot_regularization_path(results_df, save_path="results/regularization_path.png"):
     """
-    Plot tracking error and portfolio size across the alpha sweep.
-
-    Saves to results/regularization_path.png.
-
-    Parameters
-    ----------
-    results_df : pd.DataFrame
-        Output of sweep_alpha().
-    best_alpha : float
-        Selected alpha value (shown as vertical marker).
-    te_threshold : float
-        TE threshold line (default 1%).
+    Plots the Lasso regularization path showing active asset count
+    and validation tracking error as a function of regularization alpha.
     """
-    os.makedirs("results", exist_ok=True)
-
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
-
-    # Top: tracking error vs alpha
-    ax1.semilogx(
-        results_df["alpha"],
-        results_df["val_te"] * 100,
-        color="#2196F3", linewidth=1.5
-    )
-    ax1.axhline(
-        te_threshold * 100,
-        color="red", linestyle="--",
-        label=f"{te_threshold*100:.0f}% threshold"
-    )
-    ax1.axvline(
-        best_alpha,
-        color="green", linestyle=":",
-        label="Selected alpha"
-    )
-    ax1.set_ylabel("Validation Tracking Error (% ann.)")
-    ax1.legend()
-    ax1.grid(alpha=0.3)
-
-    # Bottom: stock count vs alpha
-    ax2.semilogx(
-        results_df["alpha"],
-        results_df["n_stocks"],
-        color="#FF9800", linewidth=1.5
-    )
-    ax2.axvline(best_alpha, color="green", linestyle=":")
-    ax2.set_xlabel("Alpha (log scale)")
-    ax2.set_ylabel("Number of Stocks Selected")
-    ax2.grid(alpha=0.3)
-
-    plt.suptitle("Lasso Regularization Path", y=1.01)
+    
+    ax1.plot(results_df['alpha'], results_df['val_te_norm'], color='#1f77b4', linewidth=2, label='Val Tracking Error (%)')
+    ax1.set_xscale('log')
+    ax1.set_ylabel('Annualized TE (%)', fontsize=11)
+    ax1.set_title('Lasso Regularization Path: Cross-Market ADR Replication', fontsize=13, fontweight='bold')
+    ax1.grid(True, alpha=0.3)
+    ax1.legend(loc='upper left')
+    
+    ax2.plot(results_df['alpha'], results_df['active_assets'], color='#ff7f0e', linewidth=2, label='Active Foreign ADRs (K)')
+    ax2.set_xscale('log')
+    ax2.set_xlabel('Regularization Penalty (Alpha)', fontsize=11)
+    ax2.set_ylabel('Number of Stocks (K)', fontsize=11)
+    ax2.grid(True, alpha=0.3)
+    ax2.legend(loc='upper right')
+    
     plt.tight_layout()
-    plt.savefig(
-        "results/regularization_path.png",
-        dpi=150,
-        bbox_inches="tight"
-    )
-    plt.show()
-    print("Saved: results/regularization_path.png")
+    plt.savefig(save_path, dpi=200)
+    plt.close()
+    print(f"[+] Saved Lasso regularization path plot to {save_path}")
