@@ -182,59 +182,59 @@ All 4 models systematically rebalanced at the end of each calendar quarter, payi
 3. **Locked Test Vault (2022-01-03 to 2024-12-30 | 752 days)**: Completely untouched 3-year multi-wave evaluation era.
 
 ### C. The 67-Ticker Curated Foreign ADR Pool
-Spans all 11 global macro sectors across North America, Europe, Asia-Pacific, and Latin America:
+Spans global macro sectors across North America, Europe, Asia-Pacific, and Latin America (67 clean ADRs retained after filtering >8% missing history from 73 initial candidates):
 - **Tech / Hardware**: `TSM`, `ASML`, `SAP`, `SONY`, `STM`, `UMC`, `LOGI`, `ERIC`, `NOK`
 - **Healthcare**: `NVO`, `NVS`, `AZN`, `GSK`, `SNY`, `TAK`, `TEVA`
-- **Energy / Materials**: `SHEL`, `BP`, `TTE`, `EQNR`, `CNQ`, `SU`, `IMO`, `PBR`, `BHP`, `RIO`, `VALE`, `SCCO`
-- **Financials**: `RY`, `TD`, `BMO`, `BNS`, `CM`, `HSBC`, `UBS`, `SAN`, `BBVA`, `ING`, `BBD`, `ITUB`, `MUFG`, `SMFG`, `DB`
-- **Consumer / Transport / Telecom**: `BABA`, `MELI`, `BIDU`, `JD`, `BUD`, `DEO`, `UL`, `HMC`, `TM`, `CNI`, `CP`, `CRH`, `AMX`, `VOD`, `BCE`, `TU`, `CHT`, `SKM`
+- **Energy / Materials**: `SHEL`, `BP`, `TTE`, `EQNR`, `CNQ`, `SU`, `IMO`, `PBR`, `BHP`, `RIO`, `VALE`, `SCCO`, `PKX`, `GFI`, `AU`
+- **Financials**: `RY`, `TD`, `BMO`, `BNS`, `CM`, `HSBC`, `UBS`, `SAN`, `BBVA`, `ING`, `BBD`, `ITUB`, `MUFG`, `SMFG`, `MFG`, `NWG`, `DB`
+- **Consumer / Transport / Telecom**: `BABA`, `MELI`, `BIDU`, `JD`, `BUD`, `DEO`, `UL`, `HMC`, `TM`, `FMX`, `CNI`, `CP`, `CRH`, `AMX`, `VOD`, `BCE`, `TU`, `CHT`, `SKM`
 
 ### D. Capital Allocation for the Balanced Tier ($K=15$ Lasso)
-The optimizer naturally concentrates into structural global infrastructure giants:
+The optimizer (nearest grid cardinality: 14 active holdings, ~85% in the top 7 anchors) naturally concentrates into structural global giants:
 - **`CNI` (Canadian National Railway)**: 16.88% (Industrial backbone)
 - **`RY` (Royal Bank of Canada)**: 14.26% (North American financial coupling)
 - **`TD` (Toronto-Dominion Bank)**: 12.42% (Commercial credit proxy)
-- **`SAP` (SAP SE)**: 11.53% (Enterprise enterprise software proxy)
+- **`SAP` (SAP SE)**: 11.53% (Enterprise software proxy)
 - **`ASML` (ASML Holding)**: 10.71% (Semiconductor monopoly proxy)
-- **`NVS` (Novartis)**: 7.82% (Healthcare proxy)
-- **`SHEL` (Shell plc)**: 6.94% (Global energy proxy)
+- **`NVS` (Novartis)**: 9.79% (Healthcare proxy)
+- **`TM` (Toyota Motor)**: 9.67% (Global automotive & manufacturing proxy)
 
 ---
 
 ## 5. Repository Structure
 
 ```text
-sp500-clone/
+Portfolio-Replication-SP500/
 ├── data/
 │   ├── raw/
-│   │   └── adr_prices.csv           # 11-year clean daily prices
+│   │   └── adr_prices.csv             # Raw daily prices (generated on download)
 │   └── processed/
-│       └── adr_log_returns.csv      # Winsorized stationary log returns
+│       └── adr_log_returns.csv        # Pre-cached winsorized stationary log returns
 ├── results/
-│   ├── shootout_buy_and_hold.png    # Mode A: 4 Models vs. S&P 500 (Drift)
+│   ├── shootout_buy_and_hold.png      # Mode A: 4 Models vs. S&P 500 (Drift)
 │   ├── shootout_quarterly_rebalance.png # Mode B: 4 Models vs. S&P 500 (Quarterly)
-│   ├── adr_pareto_frontier.png      # K vs. Tracking Error with MC Null
-│   ├── rebalancing_impact.png       # TE vs. Turnover & friction audit
-│   ├── economic_cost_curve.png      # Total Cost of Ownership L(K)
-│   ├── multi_year_shootout.png      # Combined Multi-Wave Trajectory
-│   ├── regularization_path.png      # Lasso sparsity vs. alpha penalty
-│   └── autoencoder_factors.png      # 8 latent factor time series
+│   ├── adr_pareto_frontier.png        # K vs. Tracking Error with MC Null
+│   ├── rebalancing_impact.png         # TE vs. Turnover & friction audit
+│   ├── economic_cost_curve.png        # Total Cost of Ownership L(K)
+│   ├── multi_year_shootout.png        # Combined Multi-Wave Trajectory
+│   ├── regularization_path.png        # Lasso sparsity vs. alpha penalty
+│   └── autoencoder_factors.png        # 8 latent factor time series
 ├── src/
 │   ├── __init__.py
-│   ├── data_pipeline.py             # Resilient batch fetcher & offline cache
-│   ├── features.py                  # Chronological split & causal scaling
-│   ├── lasso_model.py               # L1 tracking optimizer & unscaled metric
-│   ├── autoencoder.py               # Nonlinear latent manifold clustering
-│   ├── stepwise.py                  # Combinatorial forward selection
-│   ├── benchmarks.py                # Monte Carlo null & equal-weight baseline
-│   ├── pareto.py                    # Pareto frontier & economic optimizer
-│   └── backtest.py                  # Multi-wave simulation & risk metrics
+│   ├── data_pipeline.py               # Resilient batch fetcher & offline cache
+│   ├── features.py                    # Chronological split & causal scaling
+│   ├── lasso_model.py                 # L1 tracking optimizer & unscaled metric
+│   ├── autoencoder.py                 # Dynamic factor-proportional clustering
+│   ├── stepwise.py                    # Combinatorial forward selection
+│   ├── benchmarks.py                  # Monte Carlo null & equal-weight baseline
+│   ├── pareto.py                      # Pareto frontier & economic optimizer
+│   └── backtest.py                    # Multi-wave simulation & risk metrics
 ├── tests/
 │   ├── __init__.py
-│   └── test_engine.py               # Automated pytest unit test suite
+│   └── test_engine.py                 # Automated pytest unit test suite
 ├── requirements.txt
 ├── README.md
-└── main.py                          # Master orchestrator
+└── main.py                            # Master orchestrator
 ```
 
 ---
