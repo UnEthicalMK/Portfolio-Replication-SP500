@@ -4,7 +4,7 @@ src/benchmarks.py
 Benchmark & Statistical Null Hypothesis Generation Suite.
 Constructs:
 1. Equal-Weighted Top Liquid ADR baseline (practitioner heuristic).
-2. Monte Carlo Random Subset Null Model (N=1,000 draws) to establish
+2. Monte Carlo Random Subset Null Model to establish
    statistical significance envelopes against random asset selection.
 """
 

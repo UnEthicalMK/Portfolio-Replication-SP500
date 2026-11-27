@@ -1,10 +1,10 @@
 """
 src/autoencoder.py
 ------------------
-Nonlinear Latent Macro Factor Discovery & Cluster Medoid Selection.
+Nonlinear Latent Macro Factor Discovery & Dynamic Factor-Proportional Clustering.
 Compresses the high-dimensional cross-market correlation manifold into
-8 latent factors, clusters foreign co-movement, and selects orthogonal
-medoid assets to track the S&P 500 Total Return Index.
+8 latent factors, discovers macro clusters dynamically via silhouette optimization,
+and apportions stock quotas proportional to S&P 500 empirical factor exposure.
 """
 
 import os

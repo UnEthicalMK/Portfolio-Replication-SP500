@@ -5,7 +5,7 @@ Pareto Frontier Cardinality Engine & Economic Cost Optimization Suite.
 Constructs the full empirical trade-off boundary:
 Cardinality (K) vs. Out-of-Sample Tracking Error (TE).
 Computes:
-1. Model comparisons against Monte Carlo Null Envelope (N=500 draws).
+1. Model comparisons against Monte Carlo Null Envelope.
 2. Integrated Area Under the Curve (AUC-Frontier).
 3. Economic Total Loss Minimization L(K) determining optimal K*.
 """
@@ -33,7 +33,7 @@ def evaluate_pareto_frontier(
     ae_loadings: np.ndarray,
     stepwise_portfolios: dict,
     k_grid: list = None,
-    mc_sims: int = 250
+    mc_sims: int = 300
 ):
     """
     Sweeps cardinality K across models on the out-of-sample Test Vault (2022-2024).
@@ -110,7 +110,7 @@ def compute_economic_loss_curve(frontier_df, lambda_friction: float = 0.15, fixe
     }
     return df, opt_k
 
-def plot_pareto_frontier(frontier_df, save_path="results/adr_pareto_frontier.png"):
+def plot_pareto_frontier(frontier_df, mc_sims: int = 300, save_path="results/adr_pareto_frontier.png"):
     """
     Plots the empirical Pareto Frontier (K vs. Tracking Error) with the Monte Carlo null envelope.
     """
@@ -120,12 +120,12 @@ def plot_pareto_frontier(frontier_df, save_path="results/adr_pareto_frontier.png
     k = frontier_df['K']
     
     # Monte Carlo Null Envelope (shaded region)
-    plt.fill_between(k, frontier_df['MC_p5'], frontier_df['MC_p95'], color='gray', alpha=0.18, label='Monte Carlo Null Envelope (90% CI, N=250)')
+    plt.fill_between(k, frontier_df['MC_p5'], frontier_df['MC_p95'], color='gray', alpha=0.18, label=f'Monte Carlo Null Envelope (90% CI, N={mc_sims})')
     plt.plot(k, frontier_df['MC_median'], color='gray', linestyle='--', linewidth=1.5, label='Random Subset Median Null')
     
     # Model curves
     plt.plot(k, frontier_df['Lasso_TE'], marker='o', color='#1f77b4', linewidth=2.2, label='Lasso (L1 Sparse Optimizer)')
-    plt.plot(k, frontier_df['AE_TE'], marker='s', color='#2ca02c', linewidth=2.0, label='Autoencoder (Manifold Medoid Clustering)')
+    plt.plot(k, frontier_df['AE_TE'], marker='s', color='#2ca02c', linewidth=2.0, label='Autoencoder (Factor-Proportional Quota)')
     plt.plot(k, frontier_df['Stepwise_TE'], marker='^', color='#ff7f0e', linewidth=2.0, label='Stepwise (Greedy Forward Selection)')
     
     plt.title('Cross-Market S&P 500 Replication: Cardinality Pareto Frontier\nOut-of-Sample Test Vault (2022-2024)', fontsize=13, fontweight='bold')

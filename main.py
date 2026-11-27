@@ -97,7 +97,7 @@ def main():
     print(f"    Stepwise Optimal K*:  {opt_k['Stepwise_K_star']:>2} ADRs (Total Loss: {opt_k['Stepwise_Min_Loss']:.2f})")
     print(f"    Autoencoder Opt K*:   {opt_k['AE_K_star']:>2} ADRs (Total Loss: {opt_k['AE_Min_Loss']:.2f})")
     
-    plot_pareto_frontier(frontier_df, save_path="results/adr_pareto_frontier.png")
+    plot_pareto_frontier(frontier_df, mc_sims=300, save_path="results/adr_pareto_frontier.png")
     plot_economic_cost_curve(loss_df, opt_k, save_path="results/economic_cost_curve.png")
     
     # ---------------------------------------------------------
@@ -203,7 +203,7 @@ def main():
     bnh_plot_map = {
         f"Lasso Clone (K={k_test}, Drift)": equity_curves_bnh["Lasso (Drift)"],
         f"Stepwise Selection (K={k_test}, Drift)": equity_curves_bnh["Stepwise (Drift)"],
-        f"Autoencoder Medoids (K={k_test}, Drift)": equity_curves_bnh["Autoencoder (Drift)"],
+        f"Autoencoder Quota (K={k_test}, Drift)": equity_curves_bnh["Autoencoder (Drift)"],
         f"Equal-Weight ADRs (K={k_test}, Drift)": equity_curves_bnh["Equal-Weight (Drift)"]
     }
     plot_multi_year_shootout(
@@ -217,7 +217,7 @@ def main():
     qtr_plot_map = {
         f"Lasso Clone (K={k_test}, Quarterly Rebalanced)": equity_curves_qtr["Lasso (Quarterly)"],
         f"Stepwise Selection (K={k_test}, Quarterly Rebalanced)": equity_curves_qtr["Stepwise (Quarterly)"],
-        f"Autoencoder Medoids (K={k_test}, Quarterly Rebalanced)": equity_curves_qtr["Autoencoder (Quarterly)"],
+        f"Autoencoder Quota (K={k_test}, Quarterly Rebalanced)": equity_curves_qtr["Autoencoder (Quarterly)"],
         f"Equal-Weight ADRs (K={k_test}, Quarterly Rebalanced)": equity_curves_qtr["Equal-Weight (Quarterly)"]
     }
     plot_multi_year_shootout(
