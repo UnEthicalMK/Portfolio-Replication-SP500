@@ -1,6 +1,7 @@
-# Data — too large for GitHub, regenerate with data_pipeline.py
+# Data — raw feeds are regenerated; keep processed clean ADR returns for offline reproduction
 data/raw/
-data/processed/
+data/processed/*.csv
+!data/processed/adr_log_returns.csv
 
 # Saved model weights — regenerate by running main.py
 models/
